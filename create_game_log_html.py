@@ -2,25 +2,31 @@
 """
 Game Ratings HTML Generator
 Usage: python3 generate.py [input.csv] [output.html]
-Defaults: games.csv -> game_log.html
+Defaults: games.csv -> index.html
+
+Requires: pip install playwright && python3 -m playwright install chromium
+Cover art is fetched from Backloggd at generation time and embedded in the HTML.
 """
 
 import csv
 import json
 import sys
 import os
+import re
+import asyncio
+import time
 from pathlib import Path
 
-VALID_RATINGS = ['fantastic', 'great', 'good', 'okay', 'boring', 'yuck', 'mixed']
+VALID_RATINGS = ['fantastic', 'great', 'good', 'okay', 'lame', 'awful', 'mixed']
 
 RATING_LABELS = {
     'fantastic': 'Fantastic',
-    'great': 'Great',
-    'good': 'Good',
-    'okay': 'Okay',
-    'boring': 'Boring',
-    'yuck': 'Yuck',
-    'mixed': 'Mixed',
+    'great':     'Great',
+    'good':      'Good',
+    'okay':      'Okay',
+    'lame':      'Lame',
+    'awful':     'Awful',
+    'mixed':     'Mixed',
 }
 
 RATING_COLORS = {
@@ -28,8 +34,8 @@ RATING_COLORS = {
     'great':     '#7c3aed',
     'good':      '#2563eb',
     'okay':      '#c2620a',
-    'boring':    '#6b7280',
-    'yuck':      '#16a34a',
+    'lame':      '#6b7280',
+    'awful':     '#16a34a',
     'mixed':     '#7c5c3a',
 }
 
@@ -55,8 +61,126 @@ def read_csv(path: str) -> list[dict]:
     return games
 
 
-def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
-    games_json = json.dumps(games, ensure_ascii=False)
+def title_to_backloggd_slug(title: str) -> str:
+    """Convert a game title to a Backloggd URL slug."""
+    slug = title.lower()
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    slug = re.sub(r'[\s]+', '-', slug.strip())
+    slug = re.sub(r'-+', '-', slug)
+    return slug
+
+
+async def fetch_cover_backloggd(page, title: str) -> str | None:
+    """Try to find a game's cover image on Backloggd."""
+    slug = title_to_backloggd_slug(title)
+    url = f"https://www.backloggd.com/games/{slug}/"
+
+    try:
+        response = await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+
+        if response.status == 404:
+            # Try the search page instead
+            search_url = f"https://www.backloggd.com/search/games/{slug}/"
+            await page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
+
+            # Click the first result
+            first_result = await page.query_selector('.game-cover, .card-img, a.game-link img')
+            if first_result:
+                await first_result.click()
+                await page.wait_for_load_state("domcontentloaded", timeout=10000)
+            else:
+                return None
+
+        # Look for the cover image — Backloggd uses img#cover or og:image
+        cover_img = await page.query_selector('img#cover')
+        if cover_img:
+            src = await cover_img.get_attribute('src')
+            if src and src.startswith('http'):
+                return src
+
+        # Fallback: og:image meta tag
+        og = await page.query_selector('meta[property="og:image"]')
+        if og:
+            content = await og.get_attribute('content')
+            if content and content.startswith('http') and 'backloggd' not in content.lower():
+                # og:image on Backloggd game pages points to the cover art CDN
+                return content
+            elif content and content.startswith('http'):
+                return content
+
+        return None
+
+    except Exception as e:
+        print(f"    Error fetching {url}: {e}")
+        return None
+
+
+async def fetch_all_covers(games: list[dict]) -> dict[str, str | None]:
+    """Launch a single browser and fetch all covers sequentially."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        print("\n  ⚠  Playwright not installed. Skipping cover art.")
+        print("     To enable covers: pip install playwright && python3 -m playwright install chromium\n")
+        return {}
+
+    covers = {}
+    print(f"  Fetching cover art from Backloggd ({len(games)} games)...")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800},
+        )
+        page = await context.new_page()
+
+        for game in games:
+            title = game['title']
+            # Check for local cover first (skip network fetch if found)
+            local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+            local_found = False
+            for ext in ['jpg', 'jpeg', 'png', 'webp']:
+                if Path(f"covers/{local_slug}.{ext}").exists():
+                    covers[title] = f"covers/{local_slug}.{ext}"
+                    print(f"  ✓ {title}: local cover")
+                    local_found = True
+                    break
+            if local_found:
+                continue
+
+            print(f"  → {title}", end='', flush=True)
+            cover_url = await fetch_cover_backloggd(page, title)
+            if cover_url:
+                covers[title] = cover_url
+                print(f" ✓")
+            else:
+                covers[title] = None
+                print(f" ✗ (not found)")
+
+            # Polite delay between requests
+            await asyncio.sleep(0.5)
+
+        await browser.close()
+
+    found = sum(1 for v in covers.values() if v)
+    print(f"  Covers found: {found}/{len(games)}")
+    return covers
+
+
+def generate_html(games: list[dict], covers: dict[str, str | None],
+                  title: str = "Game Log") -> str:
+
+    # Attach cover URLs to game data
+    games_with_covers = []
+    for g in games:
+        entry = dict(g)
+        entry['cover'] = covers.get(g['title']) or ''
+        games_with_covers.append(entry)
+
+    games_json = json.dumps(games_with_covers, ensure_ascii=False)
 
     rating_css_vars = '\n'.join(
         f'    --color-{r}: {c};' for r, c in RATING_COLORS.items()
@@ -111,9 +235,7 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       color: var(--text);
     }}
 
-    header h1 span {{
-      color: var(--accent);
-    }}
+    header h1 span {{ color: var(--accent); }}
 
     .header-meta {{
       margin-top: 0.5rem;
@@ -154,10 +276,7 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       transition: all 0.15s ease;
     }}
 
-    .filter-btn:hover {{
-      border-color: var(--accent);
-      color: var(--text);
-    }}
+    .filter-btn:hover {{ border-color: var(--accent); color: var(--text); }}
 
     .filter-btn.active {{
       background: var(--accent);
@@ -192,23 +311,17 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
     .game-row {{
       display: grid;
       grid-template-columns: 60px 1fr auto;
-      gap: 0;
       background: var(--surface);
       transition: background 0.15s ease;
       position: relative;
     }}
 
-    .game-row:hover {{
-      background: var(--surface2);
-    }}
+    .game-row:hover {{ background: var(--surface2); }}
 
-    /* Rating stripe */
     .game-row::before {{
       content: '';
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
+      left: 0; top: 0; bottom: 0;
       width: 3px;
       background: var(--row-accent);
       opacity: 0.7;
@@ -224,7 +337,6 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       align-items: center;
       justify-content: center;
       background: var(--surface2);
-      position: relative;
     }}
 
     .game-cover {{
@@ -240,7 +352,6 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--surface2);
       font-family: 'Syne', sans-serif;
       font-size: 1.4rem;
       font-weight: 800;
@@ -285,12 +396,6 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       flex-shrink: 0;
     }}
 
-    .rating-badge {{
-      display: flex;
-      align-items: center;
-      white-space: nowrap;
-    }}
-
     .rating-pill {{
       font-size: 0.7rem;
       font-weight: 700;
@@ -301,6 +406,7 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
       background: color-mix(in srgb, var(--row-accent) 15%, transparent);
       color: var(--row-accent);
       border: 1px solid color-mix(in srgb, var(--row-accent) 30%, transparent);
+      white-space: nowrap;
     }}
 
     /* ── Empty state ── */
@@ -321,20 +427,20 @@ def generate_html(games: list[dict], title: str = "My Game Ratings") -> str:
 <body>
 
 <header>
-  <h1>My <span>Game Ratings</span></h1>
-  <p class="header-meta" id="header-meta">Loading...</p>
+  <h1>Game <span>Log</span></h1>
+  <p class="header-meta" id="header-meta"></p>
 </header>
 
 <div class="filter-bar">
   <span class="filter-label">Filter</span>
-  <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
-  <button class="filter-btn" data-filter="fantastic" onclick="setFilter('fantastic', this)">Fantastic</button>
-  <button class="filter-btn" data-filter="great" onclick="setFilter('great', this)">Great</button>
-  <button class="filter-btn" data-filter="good" onclick="setFilter('good', this)">Good</button>
-  <button class="filter-btn" data-filter="okay" onclick="setFilter('okay', this)">Okay</button>
-  <button class="filter-btn" data-filter="mixed" onclick="setFilter('mixed', this)">Mixed</button>
-  <button class="filter-btn" data-filter="boring" onclick="setFilter('boring', this)">Boring</button>
-  <button class="filter-btn" data-filter="yuck" onclick="setFilter('yuck', this)">Yuck</button>
+  <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+  <button class="filter-btn" onclick="setFilter('fantastic', this)">Fantastic</button>
+  <button class="filter-btn" onclick="setFilter('great', this)">Great</button>
+  <button class="filter-btn" onclick="setFilter('good', this)">Good</button>
+  <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
+  <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
+  <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
+  <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
 </div>
 
 <main>
@@ -350,8 +456,8 @@ const RATING_COLORS = {{
   great:     '#7c3aed',
   good:      '#2563eb',
   okay:      '#c2620a',
-  boring:    '#6b7280',
-  yuck:      '#16a34a',
+  lame:      '#6b7280',
+  awful:     '#16a34a',
   mixed:     '#7c5c3a',
 }};
 
@@ -360,56 +466,26 @@ const RATING_LABELS = {{
   great:     'Great',
   good:      'Good',
   okay:      'Okay',
-  boring:    'Boring',
-  yuck:      'Yuck',
+  lame:      'Lame',
+  awful:     'Awful',
   mixed:     'Mixed',
 }};
 
-// Cover cache to avoid re-fetching
-const coverCache = {{}};
+const ORDER = ['fantastic','great','good','okay','mixed','lame','awful'];
 
-async function fetchCover(title) {{
-  if (coverCache[title]) return coverCache[title];
-
-  // 1. Check for local file in covers/ folder
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
-  const localExts = ['jpg', 'jpeg', 'png', 'webp'];
-  for (const ext of localExts) {{
-    const local = `covers/${{slug}}.${{ext}}`;
-    // We'll try this in the img onerror chain instead
-  }}
-
-  // 2. Try RAWG.io (free, CORS-friendly)
-  try {{
-    const q = encodeURIComponent(title);
-    const res = await fetch(`https://api.rawg.io/api/games?search=${{q}}&page_size=1`, {{
-      headers: {{ 'User-Agent': 'GameRatingsList/1.0' }}
-    }});
-    if (res.ok) {{
-      const data = await res.json();
-      if (data.results && data.results[0] && data.results[0].background_image) {{
-        coverCache[title] = data.results[0].background_image;
-        return coverCache[title];
-      }}
-    }}
-  }} catch (e) {{}}
-
-  // 3. No cover found
-  coverCache[title] = null;
-  return null;
-}}
-
-let currentFilter = 'all';
-let renderedRows = {{}};
-
-function getInitial(title) {{
-  return title.trim()[0]?.toUpperCase() ?? '?';
+function escapeHtml(str) {{
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }}
 
 function buildRow(game) {{
   const color = RATING_COLORS[game.rating] || '#888';
   const label = RATING_LABELS[game.rating] || game.rating;
   const slug = game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+
+  const coverHtml = game.cover
+    ? `<img class="game-cover" src="${{escapeHtml(game.cover)}}" alt="${{escapeHtml(game.title)}}"
+           onerror="this.outerHTML='<div class=\\'cover-placeholder\\'>${{getInitial(game.title)}}</div>'" />`
+    : `<div class="cover-placeholder">${{getInitial(game.title)}}</div>`;
 
   const reviewHtml = game.review
     ? `<p class="game-review">${{escapeHtml(game.review)}}</p>`
@@ -419,64 +495,24 @@ function buildRow(game) {{
   row.className = 'game-row';
   row.dataset.rating = game.rating;
   row.style.setProperty('--row-accent', color);
-
   row.innerHTML = `
-    <div class="game-cover-wrap">
-      <div class="cover-placeholder" id="placeholder-${{slug}}">${{getInitial(game.title)}}</div>
-    </div>
+    <div class="game-cover-wrap">${{coverHtml}}</div>
     <div class="game-body">
       <div class="game-title">${{escapeHtml(game.title)}}</div>
       ${{reviewHtml}}
     </div>
     <div class="game-rating-col">
-      <div class="rating-badge">
-        <span class="rating-pill">${{label}}</span>
-      </div>
+      <span class="rating-pill">${{label}}</span>
     </div>
   `;
-
-  return {{ row, slug }};
+  return row;
 }}
 
-function escapeHtml(str) {{
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function getInitial(title) {{
+  return title.trim()[0]?.toUpperCase() ?? '?';
 }}
 
-async function loadCover(game, row, slug) {{
-  const placeholder = row.querySelector(`#placeholder-${{slug}}`);
-  const wrap = row.querySelector('.game-cover-wrap');
-
-  // Try local cover first
-  const localSlug = game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
-  for (const ext of ['jpg', 'jpeg', 'png', 'webp']) {{
-    const local = `covers/${{localSlug}}.${{ext}}`;
-    const testImg = new Image();
-    const localOk = await new Promise(res => {{
-      testImg.onload = () => res(true);
-      testImg.onerror = () => res(false);
-      testImg.src = local;
-    }});
-    if (localOk) {{
-      const img = document.createElement('img');
-      img.className = 'game-cover';
-      img.src = local;
-      img.alt = game.title;
-      placeholder.replaceWith(img);
-      return;
-    }}
-  }}
-
-  // Fetch from RAWG
-  const coverUrl = await fetchCover(game.title);
-  if (coverUrl) {{
-    const img = document.createElement('img');
-    img.className = 'game-cover';
-    img.src = coverUrl;
-    img.alt = game.title;
-    img.onerror = () => {{ img.replaceWith(placeholder); }};
-    placeholder.replaceWith(img);
-  }}
-}}
+let currentFilter = 'all';
 
 function setFilter(filter, btn) {{
   currentFilter = filter;
@@ -500,30 +536,14 @@ function renderList() {{
     return;
   }}
 
-  countEl.textContent = `${{filtered.length}} game${{filtered.length !== 1 ? 's' : ''}}`;
-
-  // Order: fantastic → great → good → okay → mixed → boring → yuck
-  const ORDER = ['fantastic','great','good','okay','mixed','boring','yuck'];
-  const sorted = [...filtered].sort((a, b) =>
-    ORDER.indexOf(a.rating) - ORDER.indexOf(b.rating)
-  );
-
-  sorted.forEach(game => {{
-    if (!renderedRows[game.title]) {{
-      const {{ row, slug }} = buildRow(game);
-      renderedRows[game.title] = {{ row, slug }};
-      // Kick off cover fetch without blocking render
-      loadCover(game, row, slug);
-    }}
-    list.appendChild(renderedRows[game.title].row);
-  }});
+  const sorted = [...filtered].sort((a, b) => ORDER.indexOf(a.rating) - ORDER.indexOf(b.rating));
+  countEl.textContent = `${{sorted.length}} game${{sorted.length !== 1 ? 's' : ''}}`;
+  sorted.forEach(game => list.appendChild(buildRow(game)));
 }}
 
-// Init
 (function init() {{
-  const total = GAMES.length;
   document.getElementById('header-meta').textContent =
-    `${{total}} game${{total !== 1 ? 's' : ''}} rated`;
+    `${{GAMES.length}} game${{GAMES.length !== 1 ? 's' : ''}} rated`;
   renderList();
 }})();
 </script>
@@ -534,7 +554,7 @@ function renderList() {{
 
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
-    out_path = sys.argv[2] if len(sys.argv) > 2 else 'game_log.html'
+    out_path = sys.argv[2] if len(sys.argv) > 2 else 'index.html'
 
     if not os.path.exists(csv_path):
         print(f"Error: '{csv_path}' not found.")
@@ -544,18 +564,21 @@ def main():
     games = read_csv(csv_path)
     print(f"  Found {len(games)} game(s).")
 
-    html = generate_html(games)
+    covers = asyncio.run(fetch_all_covers(games))
 
+    print(f"Generating {out_path}...")
+    html = generate_html(games, covers)
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
-    print(f"Generated {out_path}")
+    print(f"Done → {out_path}")
     print()
-    print("Setup notes:")
-    print("  • Optionally place game cover images in a 'covers/' folder.")
-    print("    Name them by slug, e.g. 'hollow-knight.jpg'. These take priority")
-    print("    over auto-fetched covers.")
-    print("  • Cover art is auto-fetched from RAWG.io when viewing in a browser.")
+    print("Tips:")
+    print("  • Re-run any time you update games.csv to refresh the page.")
+    print("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
+    print("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
+    print("  • If a cover shows wrong, check the slug:")
+    print("    title → lowercase, non-alphanumeric → hyphens.")
 
 
 if __name__ == '__main__':
