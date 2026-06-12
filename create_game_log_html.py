@@ -116,15 +116,19 @@ async def fetch_cover_backloggd(page, title: str) -> str | None:
 
 
 async def fetch_all_covers(games: list[dict]) -> dict[str, str | None]:
-    """Launch a single browser and fetch all covers sequentially."""
+    """Launch a single browser and fetch all covers sequentially.
+    Downloaded covers are saved to covers/ so re-runs skip the network fetch.
+    """
     try:
         from playwright.async_api import async_playwright
+        import urllib.request
     except ImportError:
         print("\n  ⚠  Playwright not installed. Skipping cover art.")
         print("     To enable covers: pip install playwright && python3 -m playwright install chromium\n")
         return {}
 
     covers = {}
+    Path("covers").mkdir(exist_ok=True)
     print(f"  Fetching cover art from Backloggd ({len(games)} games)...")
 
     async with async_playwright() as p:
@@ -139,13 +143,15 @@ async def fetch_all_covers(games: list[dict]) -> dict[str, str | None]:
 
         for game in games:
             title = game['title']
-            # Check for local cover first (skip network fetch if found)
             local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+
+            # Check for already-cached local cover first
             local_found = False
             for ext in ['jpg', 'jpeg', 'png', 'webp']:
-                if Path(f"covers/{local_slug}.{ext}").exists():
-                    covers[title] = f"covers/{local_slug}.{ext}"
-                    print(f"  ✓ {title}: local cover")
+                local_path = Path(f"covers/{local_slug}.{ext}")
+                if local_path.exists():
+                    covers[title] = str(local_path)
+                    print(f"  ✓ {title}: cached")
                     local_found = True
                     break
             if local_found:
@@ -154,8 +160,25 @@ async def fetch_all_covers(games: list[dict]) -> dict[str, str | None]:
             print(f"  → {title}", end='', flush=True)
             cover_url = await fetch_cover_backloggd(page, title)
             if cover_url:
-                covers[title] = cover_url
-                print(f" ✓")
+                # Determine extension from URL, default to jpg
+                url_path = cover_url.split('?')[0]
+                ext = url_path.rsplit('.', 1)[-1].lower()
+                if ext not in ('jpg', 'jpeg', 'png', 'webp'):
+                    ext = 'jpg'
+                local_path = Path(f"covers/{local_slug}.{ext}")
+                try:
+                    req = urllib.request.Request(
+                        cover_url,
+                        headers={'User-Agent': 'Mozilla/5.0'}
+                    )
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        local_path.write_bytes(resp.read())
+                    covers[title] = str(local_path)
+                    print(f" ✓ (saved)")
+                except Exception as e:
+                    # Fall back to remote URL if download fails
+                    covers[title] = cover_url
+                    print(f" ✓ (url only, download failed: {e})")
             else:
                 covers[title] = None
                 print(f" ✗ (not found)")
@@ -489,34 +512,24 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     }}
 
     .tier-label-col {{
-      width: 150px;
+      width: 140px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       border-right: 1px solid var(--border);
+      padding: 0.75rem 1rem;
     }}
 
-    .tier-rating-img {{
-      width: 150px;
-      height: 150px;
-      object-fit: contain;
-      display: block;
-    }}
-
-    /* fallback pill when no image */
     .tier-rating-pill {{
-      font-size: 0.72rem;
-      font-weight: 700;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.07em;
-      padding: 0.3rem 0.75rem;
-      border-radius: 99px;
-      background: color-mix(in srgb, var(--tier-color) 15%, transparent);
+      letter-spacing: 0.1em;
       color: var(--tier-color);
-      border: 1px solid color-mix(in srgb, var(--tier-color) 30%, transparent);
-      white-space: nowrap;
       text-align: center;
+      white-space: nowrap;
     }}
 
     .tier-covers {{
@@ -595,7 +608,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     @media (max-width: 600px) {{
       header, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
       .game-body {{ padding: 0.75rem 0.9rem; }}
-      .tier-label-col {{ width: 90px; }}
+      .tier-label-col {{ width: 110px; }}
       .tier-rating-img {{ width: 64px; height: 64px; }}
       .tier-cover-item {{ width: 66px; }}
       .tier-cover-item img, .tier-cover-placeholder {{ width: 66px; height: 88px; }}
@@ -712,17 +725,13 @@ function buildTierRow(rating, games) {{
   row.className = 'tier-row';
   row.style.setProperty('--tier-color', color);
 
-  // Label column: rating image with pill fallback
+  // Label column: text label styled like the list-view rating pill
   const labelCol = document.createElement('div');
   labelCol.className = 'tier-label-col';
-  const img = document.createElement('img');
-  img.className = 'tier-rating-img';
-  img.src = `images/${{rating}}.png`;
-  img.alt = label;
-  img.onerror = function() {{
-    this.outerHTML = `<span class="tier-rating-pill">${{label}}</span>`;
-  }};
-  labelCol.appendChild(img);
+  const pill = document.createElement('span');
+  pill.className = 'tier-rating-pill';
+  pill.textContent = label;
+  labelCol.appendChild(pill);
   row.appendChild(labelCol);
 
   // Covers area
