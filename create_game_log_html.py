@@ -243,15 +243,24 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       font-size: 0.9rem;
     }}
 
-    /* ── Filter bar ── */
-    .filter-bar {{
+    /* ── Toolbar (filter bar + view toggle) ── */
+    .toolbar {{
       max-width: 1100px;
       margin: 1.5rem auto 0;
       padding: 0 2rem;
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }}
+
+    /* ── Filter bar ── */
+    .filter-bar {{
+      display: flex;
       gap: 0.5rem;
       flex-wrap: wrap;
       align-items: center;
+      flex: 1;
     }}
 
     .filter-label {{
@@ -283,6 +292,38 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       border-color: var(--accent);
       color: #0f0f13;
       font-weight: 600;
+    }}
+
+    /* ── View toggle ── */
+    .view-toggle {{
+      display: flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      flex-shrink: 0;
+    }}
+
+    .view-btn {{
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      width: 30px;
+      height: 28px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }}
+
+    .view-btn:hover {{ color: var(--text); background: var(--surface2); }}
+
+    .view-btn.active {{
+      background: var(--accent);
+      color: #0f0f13;
     }}
 
     /* ── Game list ── */
@@ -417,10 +458,147 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       font-size: 0.9rem;
     }}
 
+    /* ── Tier view ── */
+    .tier-view {{
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }}
+
+    .tier-row {{
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      min-height: 110px;
+      position: relative;
+    }}
+
+    .tier-row:hover {{ background: var(--surface2); }}
+
+    /* left accent stripe */
+    .tier-row::before {{
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--tier-color);
+      opacity: 0.7;
+    }}
+
+    .tier-label-col {{
+      width: 110px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem 0.75rem;
+      border-right: 1px solid var(--border);
+    }}
+
+    .tier-rating-img {{
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+    }}
+
+    /* fallback pill when no image */
+    .tier-rating-pill {{
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 0.3rem 0.75rem;
+      border-radius: 99px;
+      background: color-mix(in srgb, var(--tier-color) 15%, transparent);
+      color: var(--tier-color);
+      border: 1px solid color-mix(in srgb, var(--tier-color) 30%, transparent);
+      white-space: nowrap;
+      text-align: center;
+    }}
+
+    .tier-covers {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 12px;
+      align-items: flex-start;
+      align-content: flex-start;
+      flex: 1;
+    }}
+
+    .tier-cover-item {{
+      position: relative;
+      width: 66px;
+      flex-shrink: 0;
+      cursor: default;
+    }}
+
+    .tier-cover-item img,
+    .tier-cover-placeholder {{
+      width: 66px;
+      height: 88px;
+      object-fit: cover;
+      display: block;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }}
+
+    .tier-cover-placeholder {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      font-family: 'Syne', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }}
+
+    /* tooltip on hover */
+    .tier-cover-item .cover-tooltip {{
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f0f13;
+      color: var(--text);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.6rem;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+
+    .tier-cover-item:hover .cover-tooltip {{ display: block; }}
+
+    .tier-empty {{
+      padding: 1rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-style: italic;
+      align-self: center;
+    }}
+
     /* ── Responsive ── */
     @media (max-width: 600px) {{
-      header, .filter-bar, main {{ padding-left: 1rem; padding-right: 1rem; }}
+      header, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
       .game-body {{ padding: 0.75rem 0.9rem; }}
+      .tier-label-col {{ width: 80px; }}
+      .tier-rating-img {{ width: 48px; height: 48px; }}
+      .tier-cover-item {{ width: 54px; }}
+      .tier-cover-item img, .tier-cover-placeholder {{ width: 54px; height: 72px; }}
     }}
   </style>
 </head>
@@ -431,21 +609,32 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <p class="header-meta" id="header-meta"></p>
 </header>
 
-<div class="filter-bar">
-  <span class="filter-label">Filter</span>
-  <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
-  <button class="filter-btn" onclick="setFilter('fantastic', this)">Fantastic</button>
-  <button class="filter-btn" onclick="setFilter('great', this)">Great</button>
-  <button class="filter-btn" onclick="setFilter('good', this)">Good</button>
-  <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
-  <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
-  <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
-  <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
+<div class="toolbar">
+  <div class="filter-bar" id="filter-bar">
+    <span class="filter-label">Filter</span>
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('fantastic', this)">Fantastic</button>
+    <button class="filter-btn" onclick="setFilter('great', this)">Great</button>
+    <button class="filter-btn" onclick="setFilter('good', this)">Good</button>
+    <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
+    <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
+    <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
+    <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
+  </div>
+  <div class="view-toggle">
+    <button class="view-btn active" id="btn-list" onclick="setView('list')" title="List view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+    </button>
+    <button class="view-btn" id="btn-tier" onclick="setView('tier')" title="Tier view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </button>
+  </div>
 </div>
 
 <main>
   <p class="game-count" id="game-count"></p>
   <div class="game-list" id="game-list"></div>
+  <div class="tier-view" id="tier-view" style="display:none;"></div>
 </main>
 
 <script>
@@ -477,10 +666,15 @@ function escapeHtml(str) {{
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }}
 
+function getInitial(title) {{
+  return title.trim()[0]?.toUpperCase() ?? '?';
+}}
+
+// ── List view ────────────────────────────────────────
+
 function buildRow(game) {{
   const color = RATING_COLORS[game.rating] || '#888';
   const label = RATING_LABELS[game.rating] || game.rating;
-  const slug = game.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
 
   const coverHtml = game.cover
     ? `<img class="game-cover" src="${{escapeHtml(game.cover)}}" alt="${{escapeHtml(game.title)}}"
@@ -508,11 +702,99 @@ function buildRow(game) {{
   return row;
 }}
 
-function getInitial(title) {{
-  return title.trim()[0]?.toUpperCase() ?? '?';
+// ── Tier view ─────────────────────────────────────────
+
+function buildTierRow(rating, games) {{
+  const color = RATING_COLORS[rating] || '#888';
+  const label = RATING_LABELS[rating] || rating;
+
+  const row = document.createElement('div');
+  row.className = 'tier-row';
+  row.style.setProperty('--tier-color', color);
+
+  // Label column: rating image with pill fallback
+  const labelCol = document.createElement('div');
+  labelCol.className = 'tier-label-col';
+  const img = document.createElement('img');
+  img.className = 'tier-rating-img';
+  img.src = `images/${{rating}}.png`;
+  img.alt = label;
+  img.onerror = function() {{
+    this.outerHTML = `<span class="tier-rating-pill">${{label}}</span>`;
+  }};
+  labelCol.appendChild(img);
+  row.appendChild(labelCol);
+
+  // Covers area
+  const coversDiv = document.createElement('div');
+  coversDiv.className = 'tier-covers';
+
+  if (games.length === 0) {{
+    const empty = document.createElement('span');
+    empty.className = 'tier-empty';
+    empty.textContent = 'No games yet';
+    coversDiv.appendChild(empty);
+  }} else {{
+    games.forEach(game => {{
+      const item = document.createElement('div');
+      item.className = 'tier-cover-item';
+
+      const tooltip = document.createElement('span');
+      tooltip.className = 'cover-tooltip';
+      tooltip.textContent = game.title;
+
+      const coverEl = game.cover
+        ? (() => {{
+            const i = document.createElement('img');
+            i.src = game.cover;
+            i.alt = game.title;
+            i.onerror = function() {{
+              this.outerHTML = `<div class="tier-cover-placeholder">${{getInitial(game.title)}}</div>`;
+            }};
+            return i;
+          }})()
+        : (() => {{
+            const d = document.createElement('div');
+            d.className = 'tier-cover-placeholder';
+            d.textContent = getInitial(game.title);
+            return d;
+          }})();
+
+      item.appendChild(tooltip);
+      item.appendChild(coverEl);
+      coversDiv.appendChild(item);
+    }});
+  }}
+
+  row.appendChild(coversDiv);
+  return row;
 }}
 
+// ── View & filter state ───────────────────────────────
+
 let currentFilter = 'all';
+let currentView = 'list';
+
+function setView(view) {{
+  currentView = view;
+  document.getElementById('btn-list').classList.toggle('active', view === 'list');
+  document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
+
+  // Hide filter bar in tier mode (all tiers always shown)
+  document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
+
+  if (view === 'list') {{
+    document.getElementById('game-list').style.display = '';
+    document.getElementById('tier-view').style.display = 'none';
+    document.getElementById('game-count').style.display = '';
+    renderList();
+  }} else {{
+    document.getElementById('game-list').style.display = 'none';
+    document.getElementById('tier-view').style.display = '';
+    document.getElementById('game-count').style.display = 'none';
+    renderTiers();
+  }}
+}}
 
 function setFilter(filter, btn) {{
   currentFilter = filter;
@@ -539,6 +821,17 @@ function renderList() {{
   const sorted = [...filtered].sort((a, b) => ORDER.indexOf(a.rating) - ORDER.indexOf(b.rating));
   countEl.textContent = `${{sorted.length}} game${{sorted.length !== 1 ? 's' : ''}}`;
   sorted.forEach(game => list.appendChild(buildRow(game)));
+}}
+
+function renderTiers() {{
+  const container = document.getElementById('tier-view');
+  container.innerHTML = '';
+
+  ORDER.forEach(rating => {{
+    const games = GAMES.filter(g => g.rating === rating);
+    // Always render every tier row, even empty ones
+    container.appendChild(buildTierRow(rating, games));
+  }});
 }}
 
 (function init() {{
