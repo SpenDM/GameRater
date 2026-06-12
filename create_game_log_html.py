@@ -34,9 +34,9 @@ RATING_COLORS = {
     'great':     '#7c3aed',
     'good':      '#2563eb',
     'okay':      '#c2620a',
-    'lame':      '#6b7280',
+    'lame':      '#7c5c3a',
     'awful':     '#16a34a',
-    'mixed':     '#7c5c3a',
+    'mixed':     '#6b7280',
 }
 
 
@@ -472,7 +472,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       display: flex;
       align-items: stretch;
       background: var(--surface);
-      min-height: 110px;
+      min-height: 150px;
       position: relative;
     }}
 
@@ -489,19 +489,19 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     }}
 
     .tier-label-col {{
-      width: 110px;
+      width: 150px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem 0.75rem;
       border-right: 1px solid var(--border);
     }}
 
     .tier-rating-img {{
-      width: 64px;
-      height: 64px;
+      width: 150px;
+      height: 150px;
       object-fit: contain;
+      display: block;
     }}
 
     /* fallback pill when no image */
@@ -522,8 +522,8 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     .tier-covers {{
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      padding: 10px 12px;
+      gap: 8px;
+      padding: 14px 16px;
       align-items: flex-start;
       align-content: flex-start;
       flex: 1;
@@ -531,15 +531,15 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     .tier-cover-item {{
       position: relative;
-      width: 66px;
+      width: 88px;
       flex-shrink: 0;
       cursor: default;
     }}
 
     .tier-cover-item img,
     .tier-cover-placeholder {{
-      width: 66px;
-      height: 88px;
+      width: 88px;
+      height: 117px;
       object-fit: cover;
       display: block;
       border-radius: 4px;
@@ -595,10 +595,10 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     @media (max-width: 600px) {{
       header, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
       .game-body {{ padding: 0.75rem 0.9rem; }}
-      .tier-label-col {{ width: 80px; }}
-      .tier-rating-img {{ width: 48px; height: 48px; }}
-      .tier-cover-item {{ width: 54px; }}
-      .tier-cover-item img, .tier-cover-placeholder {{ width: 54px; height: 72px; }}
+      .tier-label-col {{ width: 90px; }}
+      .tier-rating-img {{ width: 64px; height: 64px; }}
+      .tier-cover-item {{ width: 66px; }}
+      .tier-cover-item img, .tier-cover-placeholder {{ width: 66px; height: 88px; }}
     }}
   </style>
 </head>
@@ -645,9 +645,9 @@ const RATING_COLORS = {{
   great:     '#7c3aed',
   good:      '#2563eb',
   okay:      '#c2620a',
-  lame:      '#6b7280',
+  lame:      '#7c5c3a',
   awful:     '#16a34a',
-  mixed:     '#7c5c3a',
+  mixed:     '#6b7280',
 }};
 
 const RATING_LABELS = {{
