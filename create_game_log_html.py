@@ -202,144 +202,210 @@ async def fetch_backloggd_list(url: str) -> list[str]:
     return titles
 
 
-def merge_list_into_games(games: list[dict], list_titles: list[str]) -> tuple[list[dict], int]:
-    """Add any titles from list_titles not already in games, as unrated. Returns (merged, added_count)."""
+def merge_list_into_games(games: list[dict], list_entries: list[dict]) -> tuple[list[dict], int]:
+    """Add any titles from list_entries not already in games, as unrated. Returns (merged, added_count)."""
     existing = {g['title'].lower() for g in games}
     added = 0
-    for title in list_titles:
-        if title.lower() not in existing:
-            games.append({'title': title, 'rating': 'unrated', 'review': ''})
-            existing.add(title.lower())
+    for entry in list_entries:
+        if entry['title'].lower() not in existing:
+            games.append({'title': entry['title'], 'rating': 'unrated', 'review': ''})
+            existing.add(entry['title'].lower())
             added += 1
     return games, added
 
 
+def _make_stealth_launch_args():
+    return dict(
+        headless=True,
+        args=[
+            '--disable-blink-features=AutomationControlled',
+            '--disable-infobars',
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+        ]
+    )
+
+
+def _make_stealth_context_args():
+    return dict(
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/124.0.0.0 Safari/537.36",
+        viewport={"width": 1440, "height": 900},
+        locale="en-US",
+        timezone_id="America/New_York",
+        extra_http_headers={
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+        }
+    )
+
+
+async def _stealth_page(context, stealth):
+    page = await context.new_page()
+    await stealth.apply_stealth_async(page)
+    return page
+
+
+async def fetch_backloggd_list(url: str) -> list[dict]:
+    """Scrape a Backloggd list page. Returns list of {title, cover_url} dicts."""
+    try:
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
+    except ImportError as e:
+        missing = 'playwright-stealth' if 'stealth' in str(e) else 'playwright'
+        print(f"  ⚠  Missing package: {missing}")
+        print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
+        return []
+
+    entries = []
+    print(f"  Fetching game list from {url}...")
+    stealth = Stealth()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(**_make_stealth_launch_args())
+        context = await browser.new_context(**_make_stealth_context_args())
+
+        try:
+            page_num = 1
+            while True:
+                paged_url = url if page_num == 1 else f"{url.rstrip('/')}/?page={page_num}"
+                page = await _stealth_page(context, stealth)
+
+                response = await page.goto(paged_url, wait_until="domcontentloaded", timeout=20000)
+                status = response.status if response else 0
+
+                if status >= 400:
+                    print(f"    HTTP {status} — stopping.")
+                    await page.close()
+                    break
+
+                await asyncio.sleep(2)
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(1)
+
+                found_on_page = {}  # title -> cover_url
+
+                # Grab cover images from IGDB CDN — src=cover URL, alt=game title
+                for selector in ['img[src*="igdb"][alt]', 'img[src*="images.igdb"][alt]']:
+                    els = await page.query_selector_all(selector)
+                    for el in els:
+                        title = (await el.get_attribute('alt') or '').strip()
+                        cover = (await el.get_attribute('src') or '').strip()
+                        if title and len(title) > 1:
+                            found_on_page[title] = cover or None
+
+                # Fallback: card title text (no cover)
+                if not found_on_page:
+                    for selector in ['.card-title a', '.game-title a', '.card-title', '.game-title', 'h3.title']:
+                        els = await page.query_selector_all(selector)
+                        for el in els:
+                            val = (await el.inner_text()).strip()
+                            if val and len(val) > 1:
+                                found_on_page.setdefault(val, None)
+
+                    for attr in ['data-game-name', 'data-title']:
+                        els = await page.query_selector_all(f'[{attr}]')
+                        for el in els:
+                            val = (await el.get_attribute(attr) or '').strip()
+                            if val and len(val) > 1:
+                                found_on_page.setdefault(val, None)
+
+                if not found_on_page:
+                    print(f"    ⚠  Page {page_num}: no games found.")
+                    html = await page.content()
+                    print(f"    --- Page HTML (first 3000 chars) ---\n{html[:3000]}\n    ---")
+                    await page.close()
+                    break
+
+                existing_titles = {e['title'].lower() for e in entries}
+                new = [(t, c) for t, c in found_on_page.items() if t.lower() not in existing_titles]
+                for title, cover in new:
+                    entries.append({'title': title, 'cover_url': cover})
+                print(f"    Page {page_num}: found {len(found_on_page)} games ({len(new)} new)")
+
+                next_btn = await page.query_selector(
+                    'a[rel="next"], .pagination .next:not(.disabled), a.page-link[aria-label="Next"]'
+                )
+                await page.close()
+                if not next_btn:
+                    break
+                page_num += 1
+
+        except Exception as e:
+            print(f"  ⚠  Error fetching list: {e}")
+
+        await browser.close()
+
+    print(f"  Total games found on list: {len(entries)}")
+    return entries
+
+
 def title_to_backloggd_slug(title: str) -> str:
     """Convert a game title to a Backloggd URL slug."""
-    slug = title.lower()
+    import unicodedata
+    # Normalise accented chars → ascii equivalents
+    slug = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('ascii')
+    slug = slug.lower()
     slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    slug = re.sub(r'[\s]+', '-', slug.strip())
+    slug = re.sub(r'\s+', '-', slug.strip())
     slug = re.sub(r'-+', '-', slug)
     return slug
 
 
-async def fetch_cover_backloggd(page, title: str) -> str | None:
-    """Try to find a game's cover image on Backloggd."""
-    slug = title_to_backloggd_slug(title)
-    url = f"https://www.backloggd.com/games/{slug}/"
-
-    try:
-        response = await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-
-        if response.status == 404:
-            # Try the search page instead
-            search_url = f"https://www.backloggd.com/search/games/{slug}/"
-            await page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
-
-            # Click the first result
-            first_result = await page.query_selector('.game-cover, .card-img, a.game-link img')
-            if first_result:
-                await first_result.click()
-                await page.wait_for_load_state("domcontentloaded", timeout=10000)
-            else:
-                return None
-
-        # Look for the cover image — Backloggd uses img#cover or og:image
-        cover_img = await page.query_selector('img#cover')
-        if cover_img:
-            src = await cover_img.get_attribute('src')
-            if src and src.startswith('http'):
-                return src
-
-        # Fallback: og:image meta tag
-        og = await page.query_selector('meta[property="og:image"]')
-        if og:
-            content = await og.get_attribute('content')
-            if content and content.startswith('http') and 'backloggd' not in content.lower():
-                # og:image on Backloggd game pages points to the cover art CDN
-                return content
-            elif content and content.startswith('http'):
-                return content
-
-        return None
-
-    except Exception as e:
-        print(f"    Error fetching {url}: {e}")
-        return None
-
-
-async def fetch_all_covers(games: list[dict]) -> dict[str, str | None]:
-    """Launch a single browser and fetch all covers sequentially.
-    Downloaded covers are saved to covers/ so re-runs skip the network fetch.
+async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | None = None) -> dict[str, str | None]:
+    """Download and cache cover art for all games.
+    Cover URLs come from the list page scrape (list_cover_urls).
+    Games already in covers/ are skipped. Anything without a URL gets a placeholder.
     """
-    try:
-        from playwright.async_api import async_playwright
-        import urllib.request
-    except ImportError:
-        print("\n  ⚠  Playwright not installed. Skipping cover art.")
-        print("     To enable covers: pip install playwright && python3 -m playwright install chromium\n")
-        return {}
+    import urllib.request
 
     covers = {}
     Path("covers").mkdir(exist_ok=True)
-    print(f"  Fetching cover art from Backloggd ({len(games)} games)...")
+    list_cover_urls = list_cover_urls or {}
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-        )
-        page = await context.new_page()
+    print(f"  Processing cover art for {len(games)} games...")
 
-        for game in games:
-            title = game['title']
-            local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+    for game in games:
+        title = game['title']
+        local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
 
-            # Check for already-cached local cover first
-            local_found = False
-            for ext in ['jpg', 'jpeg', 'png', 'webp']:
-                local_path = Path(f"covers/{local_slug}.{ext}")
-                if local_path.exists():
-                    covers[title] = str(local_path)
-                    print(f"  ✓ {title}: cached")
-                    local_found = True
-                    break
-            if local_found:
-                continue
+        # 1. Already cached locally?
+        for ext in ['jpg', 'jpeg', 'png', 'webp']:
+            local_path = Path(f"covers/{local_slug}.{ext}")
+            if local_path.exists():
+                covers[title] = str(local_path)
+                print(f"  ✓ {title}: cached")
+                break
 
-            print(f"  → {title}", end='', flush=True)
-            cover_url = await fetch_cover_backloggd(page, title)
-            if cover_url:
-                # Determine extension from URL, default to jpg
-                url_path = cover_url.split('?')[0]
-                ext = url_path.rsplit('.', 1)[-1].lower()
-                if ext not in ('jpg', 'jpeg', 'png', 'webp'):
-                    ext = 'jpg'
-                local_path = Path(f"covers/{local_slug}.{ext}")
-                try:
-                    req = urllib.request.Request(
-                        cover_url,
-                        headers={'User-Agent': 'Mozilla/5.0'}
-                    )
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        local_path.write_bytes(resp.read())
-                    covers[title] = str(local_path)
-                    print(f" ✓ (saved)")
-                except Exception as e:
-                    # Fall back to remote URL if download fails
-                    covers[title] = cover_url
-                    print(f" ✓ (url only, download failed: {e})")
-            else:
-                covers[title] = None
-                print(f" ✗ (not found)")
+        if title in covers:
+            continue
 
-            # Polite delay between requests
-            await asyncio.sleep(0.5)
+        # 2. Download from URL grabbed off the list page
+        cover_url = list_cover_urls.get(title)
+        if not cover_url:
+            covers[title] = None
+            print(f"  ✗ {title}: no cover URL")
+            continue
 
-        await browser.close()
+        print(f"  → {title}", end='', flush=True)
+        url_path = cover_url.split('?')[0]
+        ext = url_path.rsplit('.', 1)[-1].lower()
+        if ext not in ('jpg', 'jpeg', 'png', 'webp'):
+            ext = 'jpg'
+        local_path = Path(f"covers/{local_slug}.{ext}")
+        try:
+            req = urllib.request.Request(cover_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                local_path.write_bytes(resp.read())
+            covers[title] = str(local_path)
+            print(f" ✓ (saved)")
+        except Exception as e:
+            covers[title] = cover_url  # fall back to remote URL
+            print(f" ✓ (url only: {e})")
 
     found = sum(1 for v in covers.values() if v)
     print(f"  Covers found: {found}/{len(games)}")
@@ -1054,20 +1120,23 @@ def main():
     print(f"  Found {len(games)} game(s).")
 
     print(f"\nFetching game list from Backloggd...")
-    list_titles = asyncio.run(fetch_backloggd_list(BACKLOGGD_LIST_URL))
+    list_entries = asyncio.run(fetch_backloggd_list(BACKLOGGD_LIST_URL))
 
-    if list_titles:
-        games, added = merge_list_into_games(games, list_titles)
+    list_cover_urls = {}
+    if list_entries:
+        games, added = merge_list_into_games(games, list_entries)
         if added > 0:
             print(f"  Added {added} new unrated game(s) to {csv_path}.")
             write_csv(csv_path, games)
         else:
             print(f"  No new games to add.")
+        list_cover_urls = {e['title']: e['cover_url'] for e in list_entries if e.get('cover_url')}
+        print(f"  Cover URLs grabbed from list page: {len(list_cover_urls)}")
     else:
         print(f"  Could not fetch list or list was empty.")
 
     print(f"\nFetching cover art...")
-    covers = asyncio.run(fetch_all_covers(games))
+    covers = asyncio.run(fetch_all_covers(games, list_cover_urls))
 
     print(f"\nGenerating {out_path}...")
     html = generate_html(games, covers)
