@@ -518,9 +518,16 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       align-items: center;
       justify-content: center;
       border-right: 1px solid var(--border);
-      padding: 0.75rem 1rem;
     }}
 
+    .tier-rating-img {{
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      display: block;
+    }}
+
+    /* fallback pill if image missing */
     .tier-rating-pill {{
       font-family: 'Syne', sans-serif;
       font-size: 0.8rem;
@@ -725,13 +732,17 @@ function buildTierRow(rating, games) {{
   row.className = 'tier-row';
   row.style.setProperty('--tier-color', color);
 
-  // Label column: text label styled like the list-view rating pill
+  // Label column: rating image with text pill fallback
   const labelCol = document.createElement('div');
   labelCol.className = 'tier-label-col';
-  const pill = document.createElement('span');
-  pill.className = 'tier-rating-pill';
-  pill.textContent = label;
-  labelCol.appendChild(pill);
+  const img = document.createElement('img');
+  img.className = 'tier-rating-img';
+  img.src = `images/${{rating}}.png`;
+  img.alt = label;
+  img.onerror = function() {{
+    this.outerHTML = `<span class="tier-rating-pill">${{label}}</span>`;
+  }};
+  labelCol.appendChild(img);
   row.appendChild(labelCol);
 
   // Covers area
