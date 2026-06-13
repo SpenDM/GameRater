@@ -4,7 +4,9 @@ Game Ratings HTML Generator
 Usage: python3 generate.py [input.csv] [output.html]
 Defaults: games.csv -> index.html
 
-Requires: pip install playwright && python3 -m playwright install chromium
+Requires:
+  pip install playwright playwright-stealth
+  python3 -m playwright install chromium
 Cover art is fetched from Backloggd at generation time and embedded in the HTML.
 """
 
@@ -27,6 +29,7 @@ RATING_LABELS = {
     'lame':      'Lame',
     'awful':     'Awful',
     'mixed':     'Mixed',
+    'unrated':   'Unrated',
 }
 
 RATING_COLORS = {
@@ -37,7 +40,10 @@ RATING_COLORS = {
     'lame':      '#7c5c3a',
     'awful':     '#16a34a',
     'mixed':     '#6b7280',
+    'unrated':   '#3a3a4a',
 }
+
+BACKLOGGD_LIST_URL = 'https://backloggd.com/u/smorrs/list/games-played-2026/'
 
 
 def read_csv(path: str) -> list[dict]:
@@ -52,13 +58,160 @@ def read_csv(path: str) -> list[dict]:
             if not title:
                 print(f"  Warning: row {i} has no title, skipping.")
                 continue
-            if rating not in VALID_RATINGS:
+            if rating not in VALID_RATINGS and rating != 'unrated':
                 print(f"  Warning: '{rating}' is not a valid rating for '{title}'. "
-                      f"Valid: {', '.join(VALID_RATINGS)}. Defaulting to 'okay'.")
-                rating = 'okay'
+                      f"Valid: {', '.join(VALID_RATINGS)}. Defaulting to 'unrated'.")
+                rating = 'unrated'
 
             games.append({'title': title, 'rating': rating, 'review': review})
     return games
+
+
+def write_csv(path: str, games: list[dict]) -> None:
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=['title', 'rating', 'review'])
+        writer.writeheader()
+        writer.writerows(games)
+
+
+async def fetch_backloggd_list(url: str) -> list[str]:
+    """Scrape a Backloggd list page and return all game titles found."""
+    try:
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
+    except ImportError as e:
+        missing = 'playwright' if 'playwright' in str(e) else 'playwright-stealth'
+        print(f"  ⚠  Missing package: {missing}")
+        print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
+        return []
+
+    titles = []
+    print(f"  Fetching game list from {url}...")
+    stealth = Stealth()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-infobars',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+            ]
+        )
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1440, "height": 900},
+            locale="en-US",
+            timezone_id="America/New_York",
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
+            }
+        )
+
+        try:
+            page_num = 1
+            while True:
+                paged_url = url if page_num == 1 else f"{url.rstrip('/')}/?page={page_num}"
+                page = await context.new_page()
+                await stealth.apply_stealth_async(page)
+
+                response = await page.goto(paged_url, wait_until="domcontentloaded", timeout=20000)
+                status = response.status if response else 0
+
+                if status >= 400:
+                    print(f"    HTTP {status} — stopping.")
+                    await page.close()
+                    break
+
+                # Wait for JS to render content
+                await asyncio.sleep(2)
+
+                # Scroll to bottom to trigger any lazy loading
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(1)
+
+                found_on_page = set()
+
+                # IGDB cover image alt text — most reliable on Backloggd
+                for selector in ['img[src*="igdb"][alt]', 'img[src*="images.igdb"][alt]']:
+                    els = await page.query_selector_all(selector)
+                    for el in els:
+                        val = (await el.get_attribute('alt') or '').strip()
+                        if val and len(val) > 1:
+                            found_on_page.add(val)
+
+                # Card/game title text elements
+                for selector in ['.card-title a', '.game-title a', '.game-card .title',
+                                  '.card-title', '.game-title', 'h3.title', 'h4.title']:
+                    els = await page.query_selector_all(selector)
+                    for el in els:
+                        val = (await el.inner_text()).strip()
+                        if val and len(val) > 1:
+                            found_on_page.add(val)
+
+                # Anchor title attributes on game links
+                els = await page.query_selector_all('a[href*="/games/"][title]')
+                for el in els:
+                    val = (await el.get_attribute('title') or '').strip()
+                    if val and len(val) > 1:
+                        found_on_page.add(val)
+
+                # Data attributes
+                for attr in ['data-game-name', 'data-title']:
+                    els = await page.query_selector_all(f'[{attr}]')
+                    for el in els:
+                        val = (await el.get_attribute(attr) or '').strip()
+                        if val and len(val) > 1:
+                            found_on_page.add(val)
+
+                if not found_on_page:
+                    print(f"    ⚠  Page {page_num}: no games found.")
+                    print(f"    --- Page HTML (first 3000 chars) ---")
+                    html = await page.content()
+                    print(html[:3000])
+                    print(f"    --- End HTML ---")
+                    await page.close()
+                    break
+
+                new = [t for t in found_on_page if t.lower() not in {x.lower() for x in titles}]
+                titles.extend(new)
+                print(f"    Page {page_num}: found {len(found_on_page)} games ({len(new)} new)")
+
+                # Check for next page
+                next_btn = await page.query_selector(
+                    'a[rel="next"], .pagination .next:not(.disabled), a.page-link[aria-label="Next"]'
+                )
+                await page.close()
+                if not next_btn:
+                    break
+                page_num += 1
+
+        except Exception as e:
+            print(f"  ⚠  Error fetching list: {e}")
+
+        await browser.close()
+
+    print(f"  Total games found on list: {len(titles)}")
+    return titles
+
+
+def merge_list_into_games(games: list[dict], list_titles: list[str]) -> tuple[list[dict], int]:
+    """Add any titles from list_titles not already in games, as unrated. Returns (merged, added_count)."""
+    existing = {g['title'].lower() for g in games}
+    added = 0
+    for title in list_titles:
+        if title.lower() not in existing:
+            games.append({'title': title, 'rating': 'unrated', 'review': ''})
+            existing.add(title.lower())
+            added += 1
+    return games, added
 
 
 def title_to_backloggd_slug(title: str) -> str:
@@ -640,12 +793,13 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
     <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
     <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
+    <button class="filter-btn" onclick="setFilter('unrated', this)">Unrated</button>
   </div>
   <div class="view-toggle">
-    <button class="view-btn active" id="btn-list" onclick="setView('list')" title="List view">
+    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
     </button>
-    <button class="view-btn" id="btn-tier" onclick="setView('tier')" title="Tier view">
+    <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
     </button>
   </div>
@@ -653,8 +807,8 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
 <main>
   <p class="game-count" id="game-count"></p>
-  <div class="game-list" id="game-list"></div>
-  <div class="tier-view" id="tier-view" style="display:none;"></div>
+  <div class="game-list" id="game-list" style="display:none;"></div>
+  <div class="tier-view" id="tier-view"></div>
 </main>
 
 <script>
@@ -668,6 +822,7 @@ const RATING_COLORS = {{
   lame:      '#7c5c3a',
   awful:     '#16a34a',
   mixed:     '#6b7280',
+  unrated:   '#3a3a4a',
 }};
 
 const RATING_LABELS = {{
@@ -678,6 +833,7 @@ const RATING_LABELS = {{
   lame:      'Lame',
   awful:     'Awful',
   mixed:     'Mixed',
+  unrated:   'Unrated',
 }};
 
 const ORDER = ['fantastic','great','good','okay','mixed','lame','awful'];
@@ -732,17 +888,28 @@ function buildTierRow(rating, games) {{
   row.className = 'tier-row';
   row.style.setProperty('--tier-color', color);
 
-  // Label column: rating image with text pill fallback
+  // Label column
   const labelCol = document.createElement('div');
   labelCol.className = 'tier-label-col';
-  const img = document.createElement('img');
-  img.className = 'tier-rating-img';
-  img.src = `images/${{rating}}.png`;
-  img.alt = label;
-  img.onerror = function() {{
-    this.outerHTML = `<span class="tier-rating-pill">${{label}}</span>`;
-  }};
-  labelCol.appendChild(img);
+
+  if (rating === 'unrated') {{
+    // Unrated has no image — use a styled text label
+    const span = document.createElement('span');
+    span.className = 'tier-rating-pill';
+    span.textContent = label;
+    labelCol.appendChild(span);
+  }} else {{
+    // Rated tiers: rating image with text pill fallback
+    const img = document.createElement('img');
+    img.className = 'tier-rating-img';
+    img.src = `images/${{rating}}.png`;
+    img.alt = label;
+    img.onerror = function() {{
+      this.outerHTML = `<span class="tier-rating-pill">${{label}}</span>`;
+    }};
+    labelCol.appendChild(img);
+  }}
+
   row.appendChild(labelCol);
 
   // Covers area
@@ -849,15 +1016,23 @@ function renderTiers() {{
 
   ORDER.forEach(rating => {{
     const games = GAMES.filter(g => g.rating === rating);
-    // Always render every tier row, even empty ones
     container.appendChild(buildTierRow(rating, games));
   }});
+
+  // Unrated section at the bottom
+  const unratedGames = GAMES.filter(g => g.rating === 'unrated');
+  if (unratedGames.length > 0) {{
+    const divider = document.createElement('div');
+    divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
+    container.appendChild(divider);
+    container.appendChild(buildTierRow('unrated', unratedGames));
+  }}
 }}
 
 (function init() {{
   document.getElementById('header-meta').textContent =
     `${{GAMES.length}} game${{GAMES.length !== 1 ? 's' : ''}} rated`;
-  renderList();
+  setView('tier');
 }})();
 </script>
 </body>
@@ -870,16 +1045,31 @@ def main():
     out_path = sys.argv[2] if len(sys.argv) > 2 else 'index.html'
 
     if not os.path.exists(csv_path):
-        print(f"Error: '{csv_path}' not found.")
-        sys.exit(1)
+        # Create empty CSV if it doesn't exist yet
+        write_csv(csv_path, [])
+        print(f"Created empty {csv_path}")
 
     print(f"Reading {csv_path}...")
     games = read_csv(csv_path)
     print(f"  Found {len(games)} game(s).")
 
+    print(f"\nFetching game list from Backloggd...")
+    list_titles = asyncio.run(fetch_backloggd_list(BACKLOGGD_LIST_URL))
+
+    if list_titles:
+        games, added = merge_list_into_games(games, list_titles)
+        if added > 0:
+            print(f"  Added {added} new unrated game(s) to {csv_path}.")
+            write_csv(csv_path, games)
+        else:
+            print(f"  No new games to add.")
+    else:
+        print(f"  Could not fetch list or list was empty.")
+
+    print(f"\nFetching cover art...")
     covers = asyncio.run(fetch_all_covers(games))
 
-    print(f"Generating {out_path}...")
+    print(f"\nGenerating {out_path}...")
     html = generate_html(games, covers)
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
@@ -887,11 +1077,10 @@ def main():
     print(f"Done → {out_path}")
     print()
     print("Tips:")
-    print("  • Re-run any time you update games.csv to refresh the page.")
+    print("  • Re-run any time to sync new games from Backloggd and refresh the page.")
+    print("  • Edit games.csv to add ratings and reviews for unrated games.")
     print("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
     print("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
-    print("  • If a cover shows wrong, check the slug:")
-    print("    title → lowercase, non-alphanumeric → hyphens.")
 
 
 if __name__ == '__main__':
