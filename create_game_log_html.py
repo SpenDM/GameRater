@@ -830,6 +830,75 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       align-self: center;
     }}
 
+    /* ── Drag and drop ── */
+    .tier-cover-item {{
+      cursor: grab;
+    }}
+
+    .tier-cover-item:active {{
+      cursor: grabbing;
+    }}
+
+    .tier-cover-item.dragging {{
+      opacity: 0.35;
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }}
+
+    .tier-covers.drag-over {{
+      background: color-mix(in srgb, var(--tier-color) 8%, transparent);
+      outline: 2px dashed var(--tier-color);
+      outline-offset: -4px;
+      border-radius: 4px;
+    }}
+
+    .tier-cover-item.drop-before {{
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }}
+
+    /* ── Save button ── */
+    .save-btn {{
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--accent);
+      color: #0f0f13;
+      border: none;
+      border-radius: 10px;
+      padding: 0.65rem 1.4rem;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      transition: all 0.15s ease;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(6px);
+    }}
+
+    .save-btn.visible {{
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0);
+    }}
+
+    .save-btn:hover {{
+      background: #bfa0ff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    }}
+
+    .save-btn:active {{
+      transform: translateY(1px);
+    }}
+
     /* ── Responsive ── */
     @media (max-width: 600px) {{
       header, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
@@ -838,6 +907,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       .tier-rating-img {{ width: 64px; height: 64px; }}
       .tier-cover-item {{ width: 66px; }}
       .tier-cover-item img, .tier-cover-placeholder {{ width: 66px; height: 88px; }}
+      .save-btn {{ bottom: 1rem; right: 1rem; }}
     }}
   </style>
 </head>
@@ -862,11 +932,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     <button class="filter-btn" onclick="setFilter('unrated', this)">Unrated</button>
   </div>
   <div class="view-toggle">
-    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
-    </button>
     <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </button>
+    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
     </button>
   </div>
 </div>
@@ -876,6 +946,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <div class="game-list" id="game-list" style="display:none;"></div>
   <div class="tier-view" id="tier-view"></div>
 </main>
+
+<button class="save-btn" id="save-btn" onclick="saveCSV()" title="Download updated CSV">
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg>
+  Save CSV
+</button>
 
 <script>
 const GAMES = {games_json};
@@ -902,7 +977,57 @@ const RATING_LABELS = {{
   unrated:   'Unrated',
 }};
 
-const ORDER = ['fantastic','great','good','okay','mixed','lame','awful'];
+const ORDER = ['fantastic','great','good','mixed','okay','lame','awful'];
+const ALL_RATINGS = [...ORDER, 'unrated'];
+
+// ── Mutable game state ────────────────────────────────
+// Stored as ordered list per tier; reflects drag changes
+let state = {{}};  // rating -> [{{title, cover, review}}]
+
+function initState() {{
+  ALL_RATINGS.forEach(r => state[r] = []);
+  GAMES.forEach(g => {{
+    const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
+    state[r].push({{ title: g.title, cover: g.cover || '', review: g.review || '', rating: r }});
+  }});
+}}
+
+// ── Dirty tracking ────────────────────────────────────
+let dirty = false;
+function markDirty() {{
+  dirty = true;
+  document.getElementById('save-btn').classList.add('visible');
+}}
+
+// ── CSV export ────────────────────────────────────────
+function saveCSV() {{
+  const rows = [['title', 'rating', 'review']];
+  ALL_RATINGS.forEach(r => {{
+    state[r].forEach(g => {{
+      const escaped = (s) => s.includes(',') || s.includes('"') || s.includes('\\n')
+        ? `"${{s.replace(/"/g, '""')}}"` : s;
+      rows.push([escaped(g.title), r, escaped(g.review)]);
+    }});
+  }});
+  const csv = rows.map(r => r.join(',')).join('\\n');
+  const blob = new Blob([csv], {{ type: 'text/csv' }});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'games.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  dirty = false;
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Saved';
+  setTimeout(() => {{
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
+    btn.classList.remove('visible');
+  }}, 1800);
+}}
+
+// ── Drag state ────────────────────────────────────────
+let dragGame = null;      // {{title, fromRating}}
+let dragEl   = null;      // the DOM element being dragged
 
 function escapeHtml(str) {{
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -912,7 +1037,7 @@ function getInitial(title) {{
   return title.trim()[0]?.toUpperCase() ?? '?';
 }}
 
-// ── List view ────────────────────────────────────────
+// ── List view ─────────────────────────────────────────
 
 function buildRow(game) {{
   const color = RATING_COLORS[game.rating] || '#888';
@@ -946,12 +1071,105 @@ function buildRow(game) {{
 
 // ── Tier view ─────────────────────────────────────────
 
-function buildTierRow(rating, games) {{
+function makeCoverItem(game, rating) {{
+  const item = document.createElement('div');
+  item.className = 'tier-cover-item';
+  item.draggable = true;
+  item.dataset.title = game.title;
+  item.dataset.rating = rating;
+
+  const tooltip = document.createElement('span');
+  tooltip.className = 'cover-tooltip';
+  tooltip.textContent = game.title;
+
+  const coverEl = game.cover
+    ? (() => {{
+        const i = document.createElement('img');
+        i.src = game.cover;
+        i.alt = game.title;
+        i.draggable = false;  // prevent browser image drag
+        i.onerror = function() {{
+          this.outerHTML = `<div class="tier-cover-placeholder">${{getInitial(game.title)}}</div>`;
+        }};
+        return i;
+      }})()
+    : (() => {{
+        const d = document.createElement('div');
+        d.className = 'tier-cover-placeholder';
+        d.textContent = getInitial(game.title);
+        return d;
+      }})();
+
+  item.appendChild(tooltip);
+  item.appendChild(coverEl);
+
+  // ── Drag events ──
+  item.addEventListener('dragstart', e => {{
+    dragGame = {{ title: game.title, fromRating: rating }};
+    dragEl = item;
+    setTimeout(() => item.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', game.title);
+  }});
+
+  item.addEventListener('dragend', () => {{
+    item.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
+    dragGame = null;
+    dragEl = null;
+  }});
+
+  // Reorder within tier: highlight drop position
+  item.addEventListener('dragover', e => {{
+    if (!dragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
+    const rect = item.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    if (e.clientX < midX) item.classList.add('drop-before');
+  }});
+
+  item.addEventListener('dragleave', () => {{
+    item.classList.remove('drop-before');
+  }});
+
+  item.addEventListener('drop', e => {{
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragGame || dragGame.title === game.title) return;
+
+    const toRating = rating;
+    const rect = item.getBoundingClientRect();
+    const insertBefore = e.clientX < rect.left + rect.width / 2;
+
+    // Remove from source tier
+    const srcList = state[dragGame.fromRating];
+    const srcIdx = srcList.findIndex(g => g.title === dragGame.title);
+    const [moved] = srcList.splice(srcIdx, 1);
+    moved.rating = toRating;
+
+    // Insert into target tier
+    const dstList = state[toRating];
+    const dstIdx = dstList.findIndex(g => g.title === game.title);
+    dstList.splice(insertBefore ? dstIdx : dstIdx + 1, 0, moved);
+
+    markDirty();
+    renderTiers();
+  }});
+
+  return item;
+}}
+
+function buildTierRow(rating) {{
   const color = RATING_COLORS[rating] || '#888';
   const label = RATING_LABELS[rating] || rating;
+  const games = state[rating] || [];
 
   const row = document.createElement('div');
   row.className = 'tier-row';
+  row.dataset.tierRating = rating;
   row.style.setProperty('--tier-color', color);
 
   // Label column
@@ -959,13 +1177,11 @@ function buildTierRow(rating, games) {{
   labelCol.className = 'tier-label-col';
 
   if (rating === 'unrated') {{
-    // Unrated has no image — use a styled text label
     const span = document.createElement('span');
     span.className = 'tier-rating-pill';
     span.textContent = label;
     labelCol.appendChild(span);
   }} else {{
-    // Rated tiers: rating image with text pill fallback
     const img = document.createElement('img');
     img.className = 'tier-rating-img';
     img.src = `images/${{rating}}.png`;
@@ -978,46 +1194,58 @@ function buildTierRow(rating, games) {{
 
   row.appendChild(labelCol);
 
-  // Covers area
+  // Covers area — also a drop target
   const coversDiv = document.createElement('div');
   coversDiv.className = 'tier-covers';
+  coversDiv.dataset.dropRating = rating;
 
   if (games.length === 0) {{
     const empty = document.createElement('span');
     empty.className = 'tier-empty';
-    empty.textContent = 'No games yet';
+    empty.textContent = 'Drop games here';
     coversDiv.appendChild(empty);
   }} else {{
-    games.forEach(game => {{
-      const item = document.createElement('div');
-      item.className = 'tier-cover-item';
-
-      const tooltip = document.createElement('span');
-      tooltip.className = 'cover-tooltip';
-      tooltip.textContent = game.title;
-
-      const coverEl = game.cover
-        ? (() => {{
-            const i = document.createElement('img');
-            i.src = game.cover;
-            i.alt = game.title;
-            i.onerror = function() {{
-              this.outerHTML = `<div class="tier-cover-placeholder">${{getInitial(game.title)}}</div>`;
-            }};
-            return i;
-          }})()
-        : (() => {{
-            const d = document.createElement('div');
-            d.className = 'tier-cover-placeholder';
-            d.textContent = getInitial(game.title);
-            return d;
-          }})();
-
-      item.appendChild(tooltip);
-      item.appendChild(coverEl);
-      coversDiv.appendChild(item);
-    }});
+    games.forEach(game => coversDiv.appendChild(makeCoverItem(game, rating)));
   }}
+
+  // Drop onto the covers area itself (append to end of tier)
+  coversDiv.addEventListener('dragover', e => {{
+    if (!dragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    coversDiv.classList.add('drag-over');
+  }});
+
+  coversDiv.addEventListener('dragleave', e => {{
+    // Only remove if leaving the coversDiv entirely
+    if (!coversDiv.contains(e.relatedTarget)) {{
+      coversDiv.classList.remove('drag-over');
+    }}
+  }});
+
+  coversDiv.addEventListener('drop', e => {{
+    e.preventDefault();
+    coversDiv.classList.remove('drag-over');
+    if (!dragGame) return;
+
+    const toRating = rating;
+
+    // If dropped on a cover item, that item's handler takes over — skip
+    if (e.target.closest('.tier-cover-item')) return;
+
+    // Remove from source
+    const srcList = state[dragGame.fromRating];
+    const srcIdx = srcList.findIndex(g => g.title === dragGame.title);
+    if (srcIdx === -1) return;
+    const [moved] = srcList.splice(srcIdx, 1);
+    moved.rating = toRating;
+
+    // Append to end of target
+    state[toRating].push(moved);
+
+    markDirty();
+    renderTiers();
+  }});
 
   row.appendChild(coversDiv);
   return row;
@@ -1032,8 +1260,6 @@ function setView(view) {{
   currentView = view;
   document.getElementById('btn-list').classList.toggle('active', view === 'list');
   document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
-
-  // Hide filter bar in tier mode (all tiers always shown)
   document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
 
   if (view === 'list') {{
@@ -1061,9 +1287,10 @@ function renderList() {{
   const countEl = document.getElementById('game-count');
   list.innerHTML = '';
 
+  const allGames = ALL_RATINGS.flatMap(r => state[r]);
   const filtered = currentFilter === 'all'
-    ? GAMES
-    : GAMES.filter(g => g.rating === currentFilter);
+    ? allGames
+    : allGames.filter(g => g.rating === currentFilter);
 
   if (filtered.length === 0) {{
     list.innerHTML = '<div class="empty">No games with this rating yet.</div>';
@@ -1071,7 +1298,7 @@ function renderList() {{
     return;
   }}
 
-  const sorted = [...filtered].sort((a, b) => ORDER.indexOf(a.rating) - ORDER.indexOf(b.rating));
+  const sorted = [...filtered].sort((a, b) => ALL_RATINGS.indexOf(a.rating) - ALL_RATINGS.indexOf(b.rating));
   countEl.textContent = `${{sorted.length}} game${{sorted.length !== 1 ? 's' : ''}}`;
   sorted.forEach(game => list.appendChild(buildRow(game)));
 }}
@@ -1080,24 +1307,21 @@ function renderTiers() {{
   const container = document.getElementById('tier-view');
   container.innerHTML = '';
 
-  ORDER.forEach(rating => {{
-    const games = GAMES.filter(g => g.rating === rating);
-    container.appendChild(buildTierRow(rating, games));
-  }});
+  ORDER.forEach(rating => container.appendChild(buildTierRow(rating)));
 
-  // Unrated section at the bottom
-  const unratedGames = GAMES.filter(g => g.rating === 'unrated');
-  if (unratedGames.length > 0) {{
+  // Unrated at bottom with divider
+  if (state['unrated'].length > 0 || true) {{  // always show unrated row
     const divider = document.createElement('div');
     divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
     container.appendChild(divider);
-    container.appendChild(buildTierRow('unrated', unratedGames));
+    container.appendChild(buildTierRow('unrated'));
   }}
 }}
 
 (function init() {{
+  initState();
   document.getElementById('header-meta').textContent =
-    `${{GAMES.length}} game${{GAMES.length !== 1 ? 's' : ''}} rated`;
+    `${{GAMES.length}} game${{GAMES.length !== 1 ? 's' : ''}} logged`;
   setView('tier');
 }})();
 </script>
