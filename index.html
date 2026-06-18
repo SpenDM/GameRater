@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:          #0f0f13;
+      --surface:     #18181f;
+      --surface2:    #1f1f2a;
+      --border:      #2a2a38;
+      --text:        #e8e8f0;
+      --text-dim:    #7a7a99;
+      --text-muted:  #4a4a66;
+      --accent:      #a78bfa;
+    --color-fantastic: #d4a017;
+    --color-great: #7c3aed;
+    --color-good: #2563eb;
+    --color-okay: #c2620a;
+    --color-lame: #7c5c3a;
+    --color-awful: #16a34a;
+    --color-mixed: #6b7280;
+    --color-unrated: #3a3a4a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 2.5rem 2rem 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .year-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-top: 0.3rem;
+      letter-spacing: -0.01em;
+    }
+
+    .header-meta {
+      margin-top: 0.2rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+
+    /* ── Year tabs ── */
+    .year-tabs {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      gap: 0;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .year-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      color: var(--text-muted);
+      padding: 0.6rem 1.2rem;
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.02em;
+    }
+
+    .year-tab:hover { color: var(--text); }
+
+    .year-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Toolbar (filter bar + view toggle) ── */
+    .toolbar {
+      max-width: 1100px;
+      margin: 1.25rem auto 0;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      flex: 1;
+    }
+
+    .filter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-right: 0.25rem;
+    }
+
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 0.3rem 0.8rem;
+      border-radius: 99px;
+      font-size: 0.8rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f0f13;
+      font-weight: 600;
+    }
+
+    /* ── View toggle ── */
+    .view-toggle {
+      display: flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      flex-shrink: 0;
+    }
+
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      width: 30px;
+      height: 28px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .view-btn:hover { color: var(--text); background: var(--surface2); }
+
+    .view-btn.active {
+      background: var(--accent);
+      color: #0f0f13;
+    }
+
+    /* ── Game list ── */
+    main {
+      max-width: 1100px;
+      margin: 2rem auto 4rem;
+      padding: 0 2rem;
+    }
+
+    .game-count {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .game-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Game row ── */
+    .game-row {
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      background: var(--surface);
+      transition: background 0.15s ease;
+      position: relative;
+    }
+
+    .game-row:hover { background: var(--surface2); }
+
+    .game-row::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--row-accent);
+      opacity: 0.7;
+    }
+
+    .game-row.clickable { cursor: pointer; }
+    .game-row.clickable:hover .game-title { color: var(--accent); }
+
+    /* ── Cover ── */
+    .game-cover-wrap {
+      width: 60px;
+      min-height: 80px;
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+    }
+
+    .game-cover {
+      width: 60px;
+      height: 80px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cover-placeholder {
+      width: 60px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text-muted);
+    }
+
+    /* ── Body ── */
+    .game-body {
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .game-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.15s ease;
+    }
+
+    .game-review {
+      font-size: 0.84rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ── Rating column ── */
+    .game-rating-col {
+      padding: 1rem 1.25rem 1rem 0.75rem;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .rating-pill {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 0.25rem 0.65rem;
+      border-radius: 99px;
+      background: color-mix(in srgb, var(--row-accent) 15%, transparent);
+      color: var(--row-accent);
+      border: 1px solid color-mix(in srgb, var(--row-accent) 30%, transparent);
+      white-space: nowrap;
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* ── Tier view ── */
+    .tier-view {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .tier-row {
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      min-height: 150px;
+      position: relative;
+    }
+
+    .tier-row:hover { background: var(--surface2); }
+
+    .tier-row::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--tier-color);
+      opacity: 0.7;
+    }
+
+    .tier-label-col {
+      width: 140px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-right: 1px solid var(--border);
+    }
+
+    .tier-rating-img {
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .tier-rating-pill {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--tier-color);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .tier-covers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 14px 16px;
+      align-items: flex-start;
+      align-content: flex-start;
+      flex: 1;
+    }
+
+    .tier-cover-item {
+      position: relative;
+      width: 88px;
+      flex-shrink: 0;
+      cursor: grab;
+    }
+
+    .tier-cover-item:active { cursor: grabbing; }
+
+    .tier-cover-item img,
+    .tier-cover-placeholder {
+      width: 88px;
+      height: 117px;
+      object-fit: cover;
+      display: block;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .tier-cover-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      font-family: 'Syne', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .tier-cover-item .cover-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f0f13;
+      color: var(--text);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.6rem;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tier-cover-item:hover .cover-tooltip { display: block; }
+
+    .tier-empty {
+      padding: 1rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-style: italic;
+      align-self: center;
+    }
+
+    .tier-cover-item.dragging {
+      opacity: 0.35;
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .tier-covers.drag-over {
+      background: color-mix(in srgb, var(--tier-color) 8%, transparent);
+      outline: 2px dashed var(--tier-color);
+      outline-offset: -4px;
+      border-radius: 4px;
+    }
+
+    .tier-cover-item.drop-before {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ── Save button ── */
+    .save-btn {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--accent);
+      color: #0f0f13;
+      border: none;
+      border-radius: 10px;
+      padding: 0.65rem 1.4rem;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      transition: all 0.15s ease;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(6px);
+    }
+
+    .save-btn.visible {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0);
+    }
+
+    .save-btn:hover {
+      background: #bfa0ff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    }
+
+    .save-btn:active { transform: translateY(1px); }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header, .year-tabs, .toolbar, main { padding-left: 1rem; padding-right: 1rem; }
+      .game-body { padding: 0.75rem 0.9rem; }
+      .tier-label-col { width: 110px; }
+      .tier-rating-img { width: 64px; height: 64px; }
+      .tier-cover-item { width: 66px; }
+      .tier-cover-item img, .tier-cover-placeholder { width: 66px; height: 88px; }
+      .save-btn { bottom: 1rem; right: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Game <span>Log</span></h1>
+  <p class="header-meta" id="header-meta"></p>
+</header>
+
+<div class="year-tabs" id="year-tabs"></div>
+
+<div class="toolbar">
+  <div class="filter-bar" id="filter-bar">
+    <span class="filter-label">Filter</span>
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('fantastic', this)">Fantastic</button>
+    <button class="filter-btn" onclick="setFilter('great', this)">Great</button>
+    <button class="filter-btn" onclick="setFilter('good', this)">Good</button>
+    <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
+    <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
+    <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
+    <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
+    <button class="filter-btn" onclick="setFilter('unrated', this)">Unrated</button>
+  </div>
+  <div class="view-toggle">
+    <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </button>
+    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+    </button>
+  </div>
+</div>
+
+<main>
+  <p class="game-count" id="game-count"></p>
+  <div class="game-list" id="game-list" style="display:none;"></div>
+  <div class="tier-view" id="tier-view"></div>
+</main>
+
+<button class="save-btn" id="save-btn" onclick="saveCSV()" title="Download updated CSV">
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg>
+  Save CSV
+</button>
+
+<script>
+const YEARS = [2026, 2025];
+const GAMES_BY_YEAR = {"2026": [{"title": "Öoo", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/ooo--1/", "year_played": "2026", "cover": "covers\\oo.jpg"}, {"title": "Despelote", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/despelote/", "year_played": "2026", "cover": "covers\\despelote.jpg"}, {"title": "Strange Jigsaws", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/strange-jigsaws/", "year_played": "2026", "cover": "covers\\strange-jigsaws.jpg"}, {"title": "Metal Garden", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/metal-garden/", "year_played": "2026", "cover": "covers\\metal-garden.jpg"}, {"title": "The Séance of Blake Manor", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-seance-of-blake-manor/", "year_played": "2026", "cover": "covers\\the-s-ance-of-blake-manor.jpg"}, {"title": "Big Hops", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/big-hops/", "year_played": "2026", "cover": "covers\\big-hops.jpg"}, {"title": "Detective Instinct: Farewell, My Beloved", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/detective-instinct-farewell-my-beloved/", "year_played": "2026", "cover": "covers\\detective-instinct-farewell-my-beloved.jpg"}, {"title": "Her Story", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/her-story/", "year_played": "2026", "cover": "covers\\her-story.jpg"}, {"title": "No Case Should Remain Unsolved", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/no-case-should-remain-unsolved/", "year_played": "2026", "cover": "covers\\no-case-should-remain-unsolved.jpg"}, {"title": "Prince of Persia: The Lost Crown", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/prince-of-persia-the-lost-crown/", "year_played": "2026", "cover": "covers\\prince-of-persia-the-lost-crown.jpg"}, {"title": "7 Days to End with You", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/7-days-to-end-with-you/", "year_played": "2026", "cover": "covers\\7-days-to-end-with-you.jpg"}, {"title": "Easy Delivery Co.", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/easy-delivery-co/", "year_played": "2026", "cover": "covers\\easy-delivery-co.jpg"}, {"title": "LEGO Voyagers", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/lego-voyagers/", "year_played": "2026", "cover": "covers\\lego-voyagers.jpg"}, {"title": "TR-49", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/tr-49/", "year_played": "2026", "cover": "covers\\tr-49.jpg"}, {"title": "Cairn", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/cairn--3/", "year_played": "2026", "cover": "covers\\cairn.jpg"}, {"title": "Blind Touch", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/blind-touch/", "year_played": "2026", "cover": "covers\\blind-touch.jpg"}, {"title": "Botany Manor", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/botany-manor/", "year_played": "2026", "cover": "covers\\botany-manor.jpg"}, {"title": "Slay the Princess", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/slay-the-princess/", "year_played": "2026", "cover": "covers\\slay-the-princess.jpg"}, {"title": "ZeroRanger", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/zeroranger/", "year_played": "2026", "cover": "covers\\zeroranger.jpg"}, {"title": "Mewgenics", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/mewgenics/", "year_played": "2026", "cover": "covers\\mewgenics.jpg"}, {"title": "Antichamber", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/antichamber/", "year_played": "2026", "cover": "covers\\antichamber.jpg"}, {"title": "Besiege", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/besiege/", "year_played": "2026", "cover": "covers\\besiege.jpg"}, {"title": "Terra Nil", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/terra-nil--1/", "year_played": "2026", "cover": "covers\\terra-nil.jpg"}, {"title": "Sayonara Wild Hearts", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/sayonara-wild-hearts/", "year_played": "2026", "cover": "covers\\sayonara-wild-hearts.jpg"}, {"title": "A Dance of Fire and Ice", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/a-dance-of-fire-and-ice/", "year_played": "2026", "cover": "covers\\a-dance-of-fire-and-ice.jpg"}, {"title": "CrossCode", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/crosscode/", "year_played": "2026", "cover": "covers\\crosscode.jpg"}, {"title": "Paranormasight: The Mermaid's Curse", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/paranormasight-the-mermaids-curse/", "year_played": "2026", "cover": "covers\\paranormasight-the-mermaid-s-curse.jpg"}, {"title": "Pokémon Pokopia", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/pokemon-pokopia/", "year_played": "2026", "cover": "covers\\pok-mon-pokopia.jpg"}, {"title": "Lucifer Within Us", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/lucifer-within-us/", "year_played": "2026", "cover": "covers\\lucifer-within-us.jpg"}, {"title": "Burggeist", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/burggeist/", "year_played": "2026", "cover": "covers\\burggeist.jpg"}, {"title": "Lonely Mountains: Downhill", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/lonely-mountains-downhill/", "year_played": "2026", "cover": "covers\\lonely-mountains-downhill.jpg"}, {"title": "Indiana Jones and the Fate of Atlantis", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/indiana-jones-and-the-fate-of-atlantis--1/", "year_played": "2026", "cover": "covers\\indiana-jones-and-the-fate-of-atlantis.jpg"}, {"title": "Heroine's Quest: The Herald of Ragnarok", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/heroines-quest-the-herald-of-ragnarok/", "year_played": "2026", "cover": "covers\\heroine-s-quest-the-herald-of-ragnarok.jpg"}, {"title": "Donkey Kong Bananza", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/donkey-kong-bananza/", "year_played": "2026", "cover": "covers\\donkey-kong-bananza.jpg"}, {"title": "The Ratline", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-ratline/", "year_played": "2026", "cover": "covers\\the-ratline.jpg"}, {"title": "Ultimate Drummer", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/ultimate-drummer/", "year_played": "2026", "cover": "covers\\ultimate-drummer.jpg"}, {"title": "Pluto", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/pluto/", "year_played": "2026", "cover": "covers\\pluto.jpg"}, {"title": "Titanium Court", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/titanium-court/", "year_played": "2026", "cover": "covers\\titanium-court.jpg"}, {"title": "Pragmata", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/pragmata/", "year_played": "2026", "cover": "covers\\pragmata.jpg"}, {"title": "Tender Loving Care", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/tender-loving-care/", "year_played": "2026", "cover": "covers\\tender-loving-care.jpg"}, {"title": "Mina the Hollower", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/mina-the-hollower/", "year_played": "2026", "cover": "covers\\mina-the-hollower.jpg"}, {"title": "13 Sentinels: Aegis Rim", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/13-sentinels-aegis-rim/", "year_played": "2026", "cover": "covers\\13-sentinels-aegis-rim.jpg"}, {"title": "Star Fox: Assault", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/star-fox-assault/", "year_played": "2026", "cover": "covers\\star-fox-assault.jpg"}], "2025": [{"title": "1000xResist", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/1000xresist/", "year_played": "2025", "cover": "covers\\1000xresist.jpg"}, {"title": "UFO 50", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/ufo-50/", "year_played": "2025", "cover": "covers\\ufo-50.jpg"}, {"title": "Arctic Eggs", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/arctic-eggs/", "year_played": "2025", "cover": "covers\\arctic-eggs.jpg"}, {"title": "Indika", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/indika/", "year_played": "2025", "cover": "covers\\indika.jpg"}, {"title": "The Roottrees Are Dead", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-roottrees-are-dead--1/", "year_played": "2025", "cover": "covers\\the-roottrees-are-dead.jpg"}, {"title": "Monster Hunter Wilds", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/monster-hunter-wilds/", "year_played": "2025", "cover": "covers\\monster-hunter-wilds.jpg"}, {"title": "Getting Over It with Bennett Foddy", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/getting-over-it-with-bennett-foddy/", "year_played": "2025", "cover": "covers\\getting-over-it-with-bennett-foddy.jpg"}, {"title": "A Space for the Unbound", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/a-space-for-the-unbound/", "year_played": "2025", "cover": "covers\\a-space-for-the-unbound.jpg"}, {"title": "33 Immortals", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/33-immortals/", "year_played": "2025", "cover": "covers\\33-immortals.jpg"}, {"title": "Haste", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/haste--2/", "year_played": "2025", "cover": "covers\\haste.jpg"}, {"title": "Blue Prince", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/blue-prince/", "year_played": "2025", "cover": "covers\\blue-prince.jpg"}, {"title": "Pentiment", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/pentiment/", "year_played": "2025", "cover": "covers\\pentiment.jpg"}, {"title": "Viewfinder", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/viewfinder/", "year_played": "2025", "cover": "covers\\viewfinder.jpg"}, {"title": "Metaphor: ReFantazio", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/metaphor-refantazio/", "year_played": "2025", "cover": "covers\\metaphor-refantazio.jpg"}, {"title": "The King is Watching", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-king-is-watching/", "year_played": "2025", "cover": "covers\\the-king-is-watching.jpg"}, {"title": "Cube Escape: Paradox", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/cube-escape-paradox/", "year_played": "2025", "cover": "covers\\cube-escape-paradox.jpg"}, {"title": "Gone Home", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/gone-home/", "year_played": "2025", "cover": "covers\\gone-home.jpg"}, {"title": "The Invincible", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-invincible/", "year_played": "2025", "cover": "covers\\the-invincible.jpg"}, {"title": "Minit", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/minit/", "year_played": "2025", "cover": "covers\\minit.jpg"}, {"title": "Hollow Knight: Silksong", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/hollow-knight-silksong/", "year_played": "2025", "cover": "covers\\hollow-knight-silksong.jpg"}, {"title": "Tacoma", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/tacoma/", "year_played": "2025", "cover": "covers\\tacoma.jpg"}, {"title": "Baby Steps", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/baby-steps/", "year_played": "2025", "cover": "covers\\baby-steps.jpg"}, {"title": "Into the Breach", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/into-the-breach/", "year_played": "2025", "cover": "covers\\into-the-breach.jpg"}, {"title": "The Drifter", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-drifter/", "year_played": "2025", "cover": "covers\\the-drifter.jpg"}, {"title": "Dead Letter Dept.", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/dead-letter-dept/", "year_played": "2025", "cover": "covers\\dead-letter-dept.jpg"}, {"title": "The Crimson Diamond", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-crimson-diamond/", "year_played": "2025", "cover": "covers\\the-crimson-diamond.jpg"}, {"title": "Mouthwashing", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/mouthwashing/", "year_played": "2025", "cover": "covers\\mouthwashing.jpg"}, {"title": "Factorio", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/factorio/", "year_played": "2025", "cover": "covers\\factorio.jpg"}, {"title": "Balatro", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/balatro/", "year_played": "2025", "cover": "covers\\balatro.jpg"}, {"title": "Kingdom Come: Deliverance II", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/kingdom-come-deliverance-ii/", "year_played": "2025", "cover": "covers\\kingdom-come-deliverance-ii.jpg"}, {"title": "The Alters", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/the-alters/", "year_played": "2025", "cover": "covers\\the-alters.jpg"}, {"title": "Clair Obscur: Expedition 33", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/clair-obscur-expedition-33/", "year_played": "2025", "cover": "covers\\clair-obscur-expedition-33.jpg"}, {"title": "Dredge", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/dredge/", "year_played": "2025", "cover": "covers\\dredge.jpg"}, {"title": "Super Smash Bros. Ultimate", "rating": "unrated", "review": "", "url": "https://www.backloggd.com/games/super-smash-bros-ultimate/", "year_played": "2025", "cover": "covers\\super-smash-bros-ultimate.jpg"}]};
+
+const RATING_COLORS = {
+  fantastic: '#d4a017',
+  great:     '#7c3aed',
+  good:      '#2563eb',
+  okay:      '#c2620a',
+  lame:      '#7c5c3a',
+  awful:     '#16a34a',
+  mixed:     '#6b7280',
+  unrated:   '#3a3a4a',
+};
+
+const RATING_LABELS = {
+  fantastic: 'Fantastic',
+  great:     'Great',
+  good:      'Good',
+  okay:      'Okay',
+  lame:      'Lame',
+  awful:     'Awful',
+  mixed:     'Mixed',
+  unrated:   'Unrated',
+};
+
+const ORDER = ['fantastic','great','good','mixed','okay','lame','awful'];
+const ALL_RATINGS = [...ORDER, 'unrated'];
+
+// ── Mutable state ─────────────────────────────────────
+// ALL_STATE[year][rating] = [{title, cover, review, rating, url}]
+let ALL_STATE = {};
+let currentYear = YEARS[0];
+let state = null;  // reference into ALL_STATE[currentYear]
+
+function initAllState() {
+  YEARS.forEach(yr => {
+    ALL_STATE[yr] = {};
+    ALL_RATINGS.forEach(r => ALL_STATE[yr][r] = []);
+    (GAMES_BY_YEAR[yr] || []).forEach(g => {
+      const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
+      ALL_STATE[yr][r].push({
+        title:  g.title,
+        cover:  g.cover  || '',
+        review: g.review || '',
+        rating: r,
+        url:    g.url    || '',
+      });
+    });
+  });
+  state = ALL_STATE[currentYear];
+}
+
+// ── Year tabs ─────────────────────────────────────────
+function buildYearTabs() {
+  const container = document.getElementById('year-tabs');
+  container.innerHTML = '';
+  YEARS.forEach(yr => {
+    const btn = document.createElement('button');
+    btn.className = 'year-tab' + (yr === currentYear ? ' active' : '');
+    btn.textContent = String(yr);
+    btn.dataset.year = yr;
+    btn.addEventListener('click', () => setYear(yr));
+    container.appendChild(btn);
+  });
+}
+
+function setYear(yr) {
+  currentYear = yr;
+  state = ALL_STATE[yr];
+  document.querySelectorAll('.year-tab').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.year) === yr));
+  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
+  document.getElementById('header-meta').textContent =
+    `${total} game${total !== 1 ? 's' : ''} logged`;
+  if (currentView === 'tier') renderTiers();
+  else renderList();
+}
+
+// ── Dirty tracking ────────────────────────────────────
+let dirty = false;
+function markDirty() {
+  dirty = true;
+  document.getElementById('save-btn').classList.add('visible');
+}
+
+// ── CSV export (all years) ────────────────────────────
+function saveCSV() {
+  const rows = [['title', 'rating', 'review', 'url', 'year_played']];
+  YEARS.forEach(yr => {
+    const yrState = ALL_STATE[yr];
+    ALL_RATINGS.forEach(r => {
+      (yrState[r] || []).forEach(g => {
+        const esc = s => {
+          s = s || '';
+          return s.includes(',') || s.includes('"') || s.includes('\n')
+            ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr)]);
+      });
+    });
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'games.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  dirty = false;
+  const btn = document.getElementById('save-btn');
+  btn.textContent = '✓ Saved';
+  setTimeout(() => {
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
+    btn.classList.remove('visible');
+  }, 1800);
+}
+
+// ── Drag state ────────────────────────────────────────
+let dragGame = null;
+let dragEl   = null;
+
+let autoScrollRAF = null;
+
+function startAutoScroll(clientY) {
+  const ZONE = 80, SPEED = 12;
+  cancelAutoScroll();
+  function tick() {
+    const vh = window.innerHeight;
+    if (clientY < ZONE) {
+      window.scrollBy(0, -SPEED * (1 - clientY / ZONE));
+    } else if (clientY > vh - ZONE) {
+      window.scrollBy(0, SPEED * (1 - (vh - clientY) / ZONE));
+    }
+    autoScrollRAF = requestAnimationFrame(tick);
+  }
+  autoScrollRAF = requestAnimationFrame(tick);
+}
+
+function cancelAutoScroll() {
+  if (autoScrollRAF) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
+}
+
+document.addEventListener('dragover', e => { if (dragGame) startAutoScroll(e.clientY); });
+document.addEventListener('dragend',  () => cancelAutoScroll());
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getInitial(title) {
+  return title.trim()[0]?.toUpperCase() ?? '?';
+}
+
+// ── List view ─────────────────────────────────────────
+function buildRow(game) {
+  const color = RATING_COLORS[game.rating] || '#888';
+  const label = RATING_LABELS[game.rating] || game.rating;
+
+  const coverHtml = game.cover
+    ? `<img class="game-cover" src="${escapeHtml(game.cover)}" alt="${escapeHtml(game.title)}"
+           onerror="this.outerHTML='<div class=\'cover-placeholder\'>${getInitial(game.title)}</div>'" />`
+    : `<div class="cover-placeholder">${getInitial(game.title)}</div>`;
+
+  const reviewHtml = game.review
+    ? `<p class="game-review">${escapeHtml(game.review)}</p>`
+    : '';
+
+  const row = document.createElement('div');
+  row.className = 'game-row' + (game.url ? ' clickable' : '');
+  row.dataset.rating = game.rating;
+  row.style.setProperty('--row-accent', color);
+  if (game.url) row.addEventListener('click', () => window.open(game.url, '_blank', 'noopener'));
+  row.innerHTML = `
+    <div class="game-cover-wrap">${coverHtml}</div>
+    <div class="game-body">
+      <div class="game-title">${escapeHtml(game.title)}</div>
+      ${reviewHtml}
+    </div>
+    <div class="game-rating-col">
+      <span class="rating-pill">${label}</span>
+    </div>
+  `;
+  return row;
+}
+
+// ── Tier view ─────────────────────────────────────────
+function makeCoverItem(game, rating) {
+  const item = document.createElement('div');
+  item.className = 'tier-cover-item';
+  item.draggable = true;
+  item.dataset.title  = game.title;
+  item.dataset.rating = rating;
+
+  const tooltip = document.createElement('span');
+  tooltip.className   = 'cover-tooltip';
+  tooltip.textContent = game.title;
+
+  const coverEl = game.cover
+    ? (() => {
+        const i = document.createElement('img');
+        i.src      = game.cover;
+        i.alt      = game.title;
+        i.draggable = false;
+        i.onerror  = function() {
+          this.outerHTML = `<div class="tier-cover-placeholder">${getInitial(game.title)}</div>`;
+        };
+        return i;
+      })()
+    : (() => {
+        const d = document.createElement('div');
+        d.className   = 'tier-cover-placeholder';
+        d.textContent = getInitial(game.title);
+        return d;
+      })();
+
+  item.appendChild(tooltip);
+  item.appendChild(coverEl);
+
+  // Click opens Backloggd page, but not if a drag just finished
+  let wasDragged = false;
+  item.addEventListener('dragstart', e => {
+    wasDragged = true;
+    dragGame = { title: game.title, fromRating: rating };
+    dragEl   = item;
+    setTimeout(() => item.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', game.title);
+  });
+  item.addEventListener('click', () => {
+    if (wasDragged) { wasDragged = false; return; }
+    if (game.url) window.open(game.url, '_blank', 'noopener');
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
+    cancelAutoScroll();
+    dragGame = null;
+    dragEl   = null;
+  });
+
+  item.addEventListener('dragover', e => {
+    if (!dragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
+    const rect = item.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) item.classList.add('drop-before');
+  });
+  item.addEventListener('dragleave', () => item.classList.remove('drop-before'));
+  item.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragGame || dragGame.title === game.title) return;
+    const toRating    = rating;
+    const rect        = item.getBoundingClientRect();
+    const insertBefore = e.clientX < rect.left + rect.width / 2;
+    const srcList = state[dragGame.fromRating];
+    const srcIdx  = srcList.findIndex(g => g.title === dragGame.title);
+    const [moved] = srcList.splice(srcIdx, 1);
+    moved.rating  = toRating;
+    const dstList = state[toRating];
+    const dstIdx  = dstList.findIndex(g => g.title === game.title);
+    dstList.splice(insertBefore ? dstIdx : dstIdx + 1, 0, moved);
+    markDirty();
+    renderTiers();
+  });
+
+  return item;
+}
+
+function buildTierRow(rating) {
+  const color = RATING_COLORS[rating] || '#888';
+  const label = RATING_LABELS[rating] || rating;
+  const games = state[rating] || [];
+
+  const row = document.createElement('div');
+  row.className = 'tier-row';
+  row.dataset.tierRating = rating;
+  row.style.setProperty('--tier-color', color);
+
+  const labelCol = document.createElement('div');
+  labelCol.className = 'tier-label-col';
+  if (rating === 'unrated') {
+    const span = document.createElement('span');
+    span.className   = 'tier-rating-pill';
+    span.textContent = label;
+    labelCol.appendChild(span);
+  } else {
+    const img = document.createElement('img');
+    img.className = 'tier-rating-img';
+    img.src = `images/${rating}.png`;
+    img.alt = label;
+    img.onerror = function() {
+      this.outerHTML = `<span class="tier-rating-pill">${label}</span>`;
+    };
+    labelCol.appendChild(img);
+  }
+  row.appendChild(labelCol);
+
+  const coversDiv = document.createElement('div');
+  coversDiv.className = 'tier-covers';
+  coversDiv.dataset.dropRating = rating;
+
+  if (games.length === 0) {
+    const empty = document.createElement('span');
+    empty.className   = 'tier-empty';
+    empty.textContent = 'None';
+    coversDiv.appendChild(empty);
+  } else {
+    games.forEach(game => coversDiv.appendChild(makeCoverItem(game, rating)));
+  }
+
+  coversDiv.addEventListener('dragover', e => {
+    if (!dragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    coversDiv.classList.add('drag-over');
+  });
+  coversDiv.addEventListener('dragleave', e => {
+    if (!coversDiv.contains(e.relatedTarget)) coversDiv.classList.remove('drag-over');
+  });
+  coversDiv.addEventListener('drop', e => {
+    e.preventDefault();
+    coversDiv.classList.remove('drag-over');
+    if (!dragGame) return;
+    if (e.target.closest('.tier-cover-item')) return;
+    const srcList = state[dragGame.fromRating];
+    const srcIdx  = srcList.findIndex(g => g.title === dragGame.title);
+    if (srcIdx === -1) return;
+    const [moved] = srcList.splice(srcIdx, 1);
+    moved.rating  = rating;
+    state[rating].push(moved);
+    markDirty();
+    renderTiers();
+  });
+
+  row.appendChild(coversDiv);
+  return row;
+}
+
+// ── View & filter state ───────────────────────────────
+let currentFilter = 'all';
+let currentView   = 'tier';
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('btn-list').classList.toggle('active', view === 'list');
+  document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
+  document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
+  if (view === 'list') {
+    document.getElementById('game-list').style.display  = '';
+    document.getElementById('tier-view').style.display  = 'none';
+    document.getElementById('game-count').style.display = '';
+    renderList();
+  } else {
+    document.getElementById('game-list').style.display  = 'none';
+    document.getElementById('tier-view').style.display  = '';
+    document.getElementById('game-count').style.display = 'none';
+    renderTiers();
+  }
+}
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function renderList() {
+  const list    = document.getElementById('game-list');
+  const countEl = document.getElementById('game-count');
+  list.innerHTML = '';
+  const allGames = ALL_RATINGS.flatMap(r => state[r]);
+  const filtered = currentFilter === 'all'
+    ? allGames
+    : allGames.filter(g => g.rating === currentFilter);
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">No games with this rating yet.</div>';
+    countEl.textContent = '';
+    return;
+  }
+  const sorted = [...filtered].sort((a, b) =>
+    ALL_RATINGS.indexOf(a.rating) - ALL_RATINGS.indexOf(b.rating));
+  countEl.textContent = `${sorted.length} game${sorted.length !== 1 ? 's' : ''}`;
+  sorted.forEach(game => list.appendChild(buildRow(game)));
+}
+
+function renderTiers() {
+  const container = document.getElementById('tier-view');
+  container.innerHTML = '';
+  ORDER.forEach(rating => container.appendChild(buildTierRow(rating)));
+  const divider = document.createElement('div');
+  divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
+  container.appendChild(divider);
+  container.appendChild(buildTierRow('unrated'));
+}
+
+(function init() {
+  initAllState();
+  buildYearTabs();
+  // Prime the year label / game count without triggering a redundant render
+  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
+  document.getElementById('header-meta').textContent =
+    `${total} game${total !== 1 ? 's' : ''} logged`;
+  setView('tier');
+})();
+</script>
+</body>
+</html>
