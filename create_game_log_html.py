@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Game Ratings HTML Generator
-Usage: python3 generate.py [input.csv] [output.html]
+Usage: python3 create_game_log_html.py [input.csv] [output.html]
 Defaults: games.csv -> index.html
 
 Requires:
@@ -16,8 +16,11 @@ import sys
 import os
 import re
 import asyncio
-import time
 from pathlib import Path
+
+# Ensure Unicode output works on Windows terminals
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 VALID_RATINGS = ['fantastic', 'great', 'good', 'okay', 'lame', 'awful', 'mixed']
 
@@ -43,8 +46,10 @@ RATING_COLORS = {
     'unrated':   '#3a3a4a',
 }
 
-BACKLOGGD_LIST_URL = 'https://backloggd.com/u/smorrs/list/games-played-2026/'
+BACKLOGGD_FOLDER_URL = 'https://backloggd.com/u/smorrs/lists/folder/games-played-by-year/'
 
+
+# ── CSV I/O ───────────────────────────────────────────────────────────────────
 
 def read_csv(path: str) -> list[dict]:
     games = []
@@ -54,6 +59,8 @@ def read_csv(path: str) -> list[dict]:
             title = row.get('title', '').strip()
             rating = row.get('rating', '').strip().lower()
             review = row.get('review', '').strip()
+            url = row.get('url', '').strip()
+            year_played = row.get('year_played', '').strip()
 
             if not title:
                 print(f"  Warning: row {i} has no title, skipping.")
@@ -63,156 +70,22 @@ def read_csv(path: str) -> list[dict]:
                       f"Valid: {', '.join(VALID_RATINGS)}. Defaulting to 'unrated'.")
                 rating = 'unrated'
 
-            games.append({'title': title, 'rating': rating, 'review': review})
+            games.append({'title': title, 'rating': rating, 'review': review,
+                          'url': url, 'year_played': year_played})
     return games
 
 
 def write_csv(path: str, games: list[dict]) -> None:
     with open(path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=['title', 'rating', 'review'])
+        writer = csv.DictWriter(
+            f, fieldnames=['title', 'rating', 'review', 'url', 'year_played'],
+            extrasaction='ignore',
+        )
         writer.writeheader()
         writer.writerows(games)
 
 
-async def fetch_backloggd_list(url: str) -> list[str]:
-    """Scrape a Backloggd list page and return all game titles found."""
-    try:
-        from playwright.async_api import async_playwright
-        from playwright_stealth import Stealth
-    except ImportError as e:
-        missing = 'playwright' if 'playwright' in str(e) else 'playwright-stealth'
-        print(f"  ⚠  Missing package: {missing}")
-        print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
-        return []
-
-    titles = []
-    print(f"  Fetching game list from {url}...")
-    stealth = Stealth()
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-infobars',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-            ]
-        )
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/124.0.0.0 Safari/537.36",
-            viewport={"width": 1440, "height": 900},
-            locale="en-US",
-            timezone_id="America/New_York",
-            extra_http_headers={
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"macOS"',
-            }
-        )
-
-        try:
-            page_num = 1
-            while True:
-                paged_url = url if page_num == 1 else f"{url.rstrip('/')}/?page={page_num}"
-                page = await context.new_page()
-                await stealth.apply_stealth_async(page)
-
-                response = await page.goto(paged_url, wait_until="domcontentloaded", timeout=20000)
-                status = response.status if response else 0
-
-                if status >= 400:
-                    print(f"    HTTP {status} — stopping.")
-                    await page.close()
-                    break
-
-                # Wait for JS to render content
-                await asyncio.sleep(2)
-
-                # Scroll to bottom to trigger any lazy loading
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                await asyncio.sleep(1)
-
-                found_on_page = set()
-
-                # IGDB cover image alt text — most reliable on Backloggd
-                for selector in ['img[src*="igdb"][alt]', 'img[src*="images.igdb"][alt]']:
-                    els = await page.query_selector_all(selector)
-                    for el in els:
-                        val = (await el.get_attribute('alt') or '').strip()
-                        if val and len(val) > 1:
-                            found_on_page.add(val)
-
-                # Card/game title text elements
-                for selector in ['.card-title a', '.game-title a', '.game-card .title',
-                                  '.card-title', '.game-title', 'h3.title', 'h4.title']:
-                    els = await page.query_selector_all(selector)
-                    for el in els:
-                        val = (await el.inner_text()).strip()
-                        if val and len(val) > 1:
-                            found_on_page.add(val)
-
-                # Anchor title attributes on game links
-                els = await page.query_selector_all('a[href*="/games/"][title]')
-                for el in els:
-                    val = (await el.get_attribute('title') or '').strip()
-                    if val and len(val) > 1:
-                        found_on_page.add(val)
-
-                # Data attributes
-                for attr in ['data-game-name', 'data-title']:
-                    els = await page.query_selector_all(f'[{attr}]')
-                    for el in els:
-                        val = (await el.get_attribute(attr) or '').strip()
-                        if val and len(val) > 1:
-                            found_on_page.add(val)
-
-                if not found_on_page:
-                    print(f"    ⚠  Page {page_num}: no games found.")
-                    print(f"    --- Page HTML (first 3000 chars) ---")
-                    html = await page.content()
-                    print(html[:3000])
-                    print(f"    --- End HTML ---")
-                    await page.close()
-                    break
-
-                new = [t for t in found_on_page if t.lower() not in {x.lower() for x in titles}]
-                titles.extend(new)
-                print(f"    Page {page_num}: found {len(found_on_page)} games ({len(new)} new)")
-
-                # Check for next page
-                next_btn = await page.query_selector(
-                    'a[rel="next"], .pagination .next:not(.disabled), a.page-link[aria-label="Next"]'
-                )
-                await page.close()
-                if not next_btn:
-                    break
-                page_num += 1
-
-        except Exception as e:
-            print(f"  ⚠  Error fetching list: {e}")
-
-        await browser.close()
-
-    print(f"  Total games found on list: {len(titles)}")
-    return titles
-
-
-def merge_list_into_games(games: list[dict], list_entries: list[dict]) -> tuple[list[dict], int]:
-    """Add any titles from list_entries not already in games, as unrated. Returns (merged, added_count)."""
-    existing = {g['title'].lower() for g in games}
-    added = 0
-    for entry in list_entries:
-        if entry['title'].lower() not in existing:
-            games.append({'title': entry['title'], 'rating': 'unrated', 'review': ''})
-            existing.add(entry['title'].lower())
-            added += 1
-    return games, added
-
+# ── Playwright helpers ────────────────────────────────────────────────────────
 
 def _make_stealth_launch_args():
     return dict(
@@ -250,8 +123,10 @@ async def _stealth_page(context, stealth):
     return page
 
 
-async def fetch_backloggd_list(url: str) -> list[dict]:
-    """Scrape a Backloggd list page. Returns list of {title, cover_url} dicts."""
+# ── Backloggd scraping ────────────────────────────────────────────────────────
+
+async def fetch_year_lists(folder_url: str) -> list[tuple[int, str]]:
+    """Scrape the Backloggd folder page. Returns [(year, list_url), ...] sorted descending."""
     try:
         from playwright.async_api import async_playwright
         from playwright_stealth import Stealth
@@ -261,7 +136,75 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
         print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
         return []
 
-    entries = []
+    results: list[tuple[int, str]] = []
+    print(f"  Fetching year lists from {folder_url}...")
+    stealth = Stealth()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(**_make_stealth_launch_args())
+        context = await browser.new_context(**_make_stealth_context_args())
+        try:
+            page = await _stealth_page(context, stealth)
+            response = await page.goto(folder_url, wait_until="domcontentloaded", timeout=20000)
+            if response and response.status >= 400:
+                print(f"    HTTP {response.status} — giving up.")
+                await page.close()
+                await browser.close()
+                return []
+            await asyncio.sleep(2)
+
+            links = await page.evaluate('''() => {
+                const out = [];
+                document.querySelectorAll('a[href*="/list/"]').forEach(a => {
+                    const href = a.getAttribute('href') || '';
+                    const text = (a.innerText || a.textContent || '').trim();
+                    out.push({ href, text });
+                });
+                return out;
+            }''')
+
+            seen: set[int] = set()
+            for link in links:
+                href = link['href']
+                text = link['text']
+                m = re.search(r'\b(20\d{2})\b', text) or re.search(r'\b(20\d{2})\b', href)
+                if not m:
+                    continue
+                year = int(m.group(1))
+                if year in seen:
+                    continue
+                seen.add(year)
+                if href.startswith('/'):
+                    full_url = f"https://backloggd.com{href}"
+                elif href.startswith('http'):
+                    full_url = href
+                else:
+                    continue
+                results.append((year, full_url))
+                print(f"    Found: {year} → {full_url}")
+
+            await page.close()
+        except Exception as e:
+            print(f"  ⚠  Error fetching folder page: {e}")
+        await browser.close()
+
+    results.sort(key=lambda t: t[0], reverse=True)
+    print(f"  Found {len(results)} year list(s).")
+    return results
+
+
+async def fetch_backloggd_list(url: str) -> list[dict]:
+    """Scrape a Backloggd list page. Returns list of {title, cover_url, page_url} dicts."""
+    try:
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
+    except ImportError as e:
+        missing = 'playwright-stealth' if 'stealth' in str(e) else 'playwright'
+        print(f"  ⚠  Missing package: {missing}")
+        print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
+        return []
+
+    entries: list[dict] = []
     print(f"  Fetching game list from {url}...")
     stealth = Stealth()
 
@@ -277,7 +220,6 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
 
                 response = await page.goto(paged_url, wait_until="domcontentloaded", timeout=20000)
                 status = response.status if response else 0
-
                 if status >= 400:
                     print(f"    HTTP {status} — stopping.")
                     await page.close()
@@ -287,32 +229,63 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(1)
 
-                found_on_page = {}  # title -> cover_url
+                # Wait for IGDB cover images to appear (handles JS-rendered content)
+                try:
+                    await page.wait_for_selector('img[src*="igdb"][alt]', timeout=8000)
+                except Exception:
+                    pass
 
-                # Grab cover images from IGDB CDN — src=cover URL, alt=game title
-                for selector in ['img[src*="igdb"][alt]', 'img[src*="images.igdb"][alt]']:
-                    els = await page.query_selector_all(selector)
-                    for el in els:
-                        title = (await el.get_attribute('alt') or '').strip()
-                        cover = (await el.get_attribute('src') or '').strip()
-                        if title and len(title) > 1:
-                            found_on_page[title] = cover or None
+                # Single JS call: find IGDB cover imgs (title=alt), then walk DOM
+                # to find the associated /games/ link (may be ancestor OR sibling).
+                raw = await page.evaluate('''() => {
+                    const seen = new Set(), results = [];
+                    document.querySelectorAll('img[alt]').forEach(img => {
+                        const src = img.src || img.getAttribute('data-src') || '';
+                        if (!src.includes('igdb')) return;
+                        const title = img.alt.trim();
+                        if (!title || title.length <= 1 || seen.has(title)) return;
+                        // Walk up ancestors; at each level also scan descendants for a /games/ link
+                        let href = null;
+                        let el = img;
+                        for (let i = 0; i < 8 && el; i++) {
+                            if (el.tagName === 'A') {
+                                const h = el.getAttribute('href') || '';
+                                if (h.includes('/games/')) { href = h; break; }
+                            }
+                            if (el.parentElement) {
+                                const a = el.parentElement.querySelector('a[href*="/games/"]');
+                                if (a) { href = a.getAttribute('href'); break; }
+                            }
+                            el = el.parentElement;
+                        }
+                        seen.add(title);
+                        results.push({ title, cover: src || null, href: href || null });
+                    });
+                    return results;
+                }''')
 
-                # Fallback: card title text (no cover)
+                found_on_page: dict[str, dict] = {}
+                for item in raw:
+                    title = item['title']
+                    cover = item.get('cover') or None
+                    href = item.get('href') or ''
+                    page_url = (f"https://www.backloggd.com{href}" if href.startswith('/') else href) or None
+                    found_on_page[title] = {'cover_url': cover, 'page_url': page_url}
+
+                # Fallback: card title text (no cover or url)
                 if not found_on_page:
                     for selector in ['.card-title a', '.game-title a', '.card-title', '.game-title', 'h3.title']:
                         els = await page.query_selector_all(selector)
                         for el in els:
                             val = (await el.inner_text()).strip()
                             if val and len(val) > 1:
-                                found_on_page.setdefault(val, None)
-
+                                found_on_page.setdefault(val, {'cover_url': None, 'page_url': None})
                     for attr in ['data-game-name', 'data-title']:
                         els = await page.query_selector_all(f'[{attr}]')
                         for el in els:
                             val = (await el.get_attribute(attr) or '').strip()
                             if val and len(val) > 1:
-                                found_on_page.setdefault(val, None)
+                                found_on_page.setdefault(val, {'cover_url': None, 'page_url': None})
 
                 if not found_on_page:
                     print(f"    ⚠  Page {page_num}: no games found.")
@@ -322,9 +295,13 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
                     break
 
                 existing_titles = {e['title'].lower() for e in entries}
-                new = [(t, c) for t, c in found_on_page.items() if t.lower() not in existing_titles]
-                for title, cover in new:
-                    entries.append({'title': title, 'cover_url': cover})
+                new = [(t, d) for t, d in found_on_page.items() if t.lower() not in existing_titles]
+                for title, data in new:
+                    entries.append({
+                        'title': title,
+                        'cover_url': data['cover_url'],
+                        'page_url': data['page_url'],
+                    })
                 print(f"    Page {page_num}: found {len(found_on_page)} games ({len(new)} new)")
 
                 next_btn = await page.query_selector(
@@ -344,26 +321,11 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
     return entries
 
 
-def title_to_backloggd_slug(title: str) -> str:
-    """Convert a game title to a Backloggd URL slug."""
-    import unicodedata
-    # Normalise accented chars → ascii equivalents
-    slug = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('ascii')
-    slug = slug.lower()
-    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    slug = re.sub(r'\s+', '-', slug.strip())
-    slug = re.sub(r'-+', '-', slug)
-    return slug
-
-
 async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | None = None) -> dict[str, str | None]:
-    """Download and cache cover art for all games.
-    Cover URLs come from the list page scrape (list_cover_urls).
-    Games already in covers/ are skipped. Anything without a URL gets a placeholder.
-    """
+    """Download and cache cover art for all games."""
     import urllib.request
 
-    covers = {}
+    covers: dict[str, str | None] = {}
     Path("covers").mkdir(exist_ok=True)
     list_cover_urls = list_cover_urls or {}
 
@@ -373,7 +335,6 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
         title = game['title']
         local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
 
-        # 1. Already cached locally?
         for ext in ['jpg', 'jpeg', 'png', 'webp']:
             local_path = Path(f"covers/{local_slug}.{ext}")
             if local_path.exists():
@@ -384,7 +345,6 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
         if title in covers:
             continue
 
-        # 2. Download from URL grabbed off the list page
         cover_url = list_cover_urls.get(title)
         if not cover_url:
             covers[title] = None
@@ -404,7 +364,7 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
             covers[title] = str(local_path)
             print(f" ✓ (saved)")
         except Exception as e:
-            covers[title] = cover_url  # fall back to remote URL
+            covers[title] = cover_url
             print(f" ✓ (url only: {e})")
 
     found = sum(1 for v in covers.values() if v)
@@ -412,17 +372,65 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
     return covers
 
 
-def generate_html(games: list[dict], covers: dict[str, str | None],
-                  title: str = "Game Log") -> str:
+# ── CSV merge ─────────────────────────────────────────────────────────────────
 
-    # Attach cover URLs to game data
-    games_with_covers = []
+def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int) -> tuple[list[dict], int]:
+    """Add any titles from list_entries not already in games. Returns (merged, added_count)."""
+    existing = {g['title'].lower() for g in games}
+    added = 0
+    for entry in list_entries:
+        if entry['title'].lower() not in existing:
+            games.append({
+                'title': entry['title'],
+                'rating': 'unrated',
+                'review': '',
+                'url': entry.get('page_url') or '',
+                'year_played': str(year),
+            })
+            existing.add(entry['title'].lower())
+            added += 1
+    return games, added
+
+
+# ── HTML generation ───────────────────────────────────────────────────────────
+
+def generate_html(games: list[dict], covers: dict[str, str | None],
+                  title: str = "Game Log",
+                  page_urls: dict[str, str] | None = None,
+                  years: list[int] | None = None) -> str:
+
+    page_urls = page_urls or {}
+
+    # Attach cover and url to each game
+    games_with_meta = []
     for g in games:
         entry = dict(g)
         entry['cover'] = covers.get(g['title']) or ''
-        games_with_covers.append(entry)
+        entry['url'] = g.get('url') or page_urls.get(g['title']) or ''
+        games_with_meta.append(entry)
 
-    games_json = json.dumps(games_with_covers, ensure_ascii=False)
+    # Determine year list (fallback: derive from game data)
+    if years:
+        years_sorted = sorted(years, reverse=True)
+    else:
+        year_set: set[int] = set()
+        for g in games_with_meta:
+            yr = g.get('year_played', '').strip()
+            if yr.isdigit():
+                year_set.add(int(yr))
+        years_sorted = sorted(year_set, reverse=True)
+
+    # Group by year
+    games_by_year: dict[int, list] = {yr: [] for yr in years_sorted}
+    for g in games_with_meta:
+        yr_str = g.get('year_played', '').strip()
+        if yr_str.isdigit():
+            yr = int(yr_str)
+            if yr in games_by_year:
+                games_by_year[yr].append(g)
+
+    games_by_year_json = json.dumps(games_by_year, ensure_ascii=False)
+    years_json = json.dumps(years_sorted)
 
     rating_css_vars = '\n'.join(
         f'    --color-{r}: {c};' for r, c in RATING_COLORS.items()
@@ -463,8 +471,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     /* ── Header ── */
     header {{
-      border-bottom: 1px solid var(--border);
-      padding: 2.5rem 2rem 2rem;
+      padding: 2.5rem 2rem 1.5rem;
       max-width: 1100px;
       margin: 0 auto;
     }}
@@ -479,16 +486,58 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     header h1 span {{ color: var(--accent); }}
 
+    .year-label {{
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-top: 0.3rem;
+      letter-spacing: -0.01em;
+    }}
+
     .header-meta {{
-      margin-top: 0.5rem;
+      margin-top: 0.2rem;
       color: var(--text-dim);
       font-size: 0.9rem;
+    }}
+
+    /* ── Year tabs ── */
+    .year-tabs {{
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      gap: 0;
+      align-items: flex-end;
+      border-bottom: 1px solid var(--border);
+    }}
+
+    .year-tab {{
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      color: var(--text-muted);
+      padding: 0.6rem 1.2rem;
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.02em;
+    }}
+
+    .year-tab:hover {{ color: var(--text); }}
+
+    .year-tab.active {{
+      color: var(--accent);
+      border-bottom-color: var(--accent);
     }}
 
     /* ── Toolbar (filter bar + view toggle) ── */
     .toolbar {{
       max-width: 1100px;
-      margin: 1.5rem auto 0;
+      margin: 1.25rem auto 0;
       padding: 0 2rem;
       display: flex;
       align-items: center;
@@ -610,6 +659,9 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       opacity: 0.7;
     }}
 
+    .game-row.clickable {{ cursor: pointer; }}
+    .game-row.clickable:hover .game-title {{ color: var(--accent); }}
+
     /* ── Cover ── */
     .game-cover-wrap {{
       width: 60px;
@@ -659,6 +711,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      transition: color 0.15s ease;
     }}
 
     .game-review {{
@@ -720,7 +773,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     .tier-row:hover {{ background: var(--surface2); }}
 
-    /* left accent stripe */
     .tier-row::before {{
       content: '';
       position: absolute;
@@ -746,7 +798,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       display: block;
     }}
 
-    /* fallback pill if image missing */
     .tier-rating-pill {{
       font-family: 'Syne', sans-serif;
       font-size: 0.8rem;
@@ -772,8 +823,10 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       position: relative;
       width: 88px;
       flex-shrink: 0;
-      cursor: default;
+      cursor: grab;
     }}
+
+    .tier-cover-item:active {{ cursor: grabbing; }}
 
     .tier-cover-item img,
     .tier-cover-placeholder {{
@@ -798,7 +851,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       border: 1px solid var(--border);
     }}
 
-    /* tooltip on hover */
     .tier-cover-item .cover-tooltip {{
       display: none;
       position: absolute;
@@ -828,15 +880,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       font-size: 0.82rem;
       font-style: italic;
       align-self: center;
-    }}
-
-    /* ── Drag and drop ── */
-    .tier-cover-item {{
-      cursor: grab;
-    }}
-
-    .tier-cover-item:active {{
-      cursor: grabbing;
     }}
 
     .tier-cover-item.dragging {{
@@ -895,13 +938,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     }}
 
-    .save-btn:active {{
-      transform: translateY(1px);
-    }}
+    .save-btn:active {{ transform: translateY(1px); }}
 
     /* ── Responsive ── */
     @media (max-width: 600px) {{
-      header, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
+      header, .year-tabs, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
       .game-body {{ padding: 0.75rem 0.9rem; }}
       .tier-label-col {{ width: 110px; }}
       .tier-rating-img {{ width: 64px; height: 64px; }}
@@ -915,8 +956,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
 <header>
   <h1>Game <span>Log</span></h1>
+  <p class="year-label" id="year-label"></p>
   <p class="header-meta" id="header-meta"></p>
 </header>
+
+<div class="year-tabs" id="year-tabs"></div>
 
 <div class="toolbar">
   <div class="filter-bar" id="filter-bar">
@@ -953,7 +997,8 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 </button>
 
 <script>
-const GAMES = {games_json};
+const YEARS = {years_json};
+const GAMES_BY_YEAR = {games_by_year_json};
 
 const RATING_COLORS = {{
   fantastic: '#d4a017',
@@ -980,16 +1025,55 @@ const RATING_LABELS = {{
 const ORDER = ['fantastic','great','good','mixed','okay','lame','awful'];
 const ALL_RATINGS = [...ORDER, 'unrated'];
 
-// ── Mutable game state ────────────────────────────────
-// Stored as ordered list per tier; reflects drag changes
-let state = {{}};  // rating -> [{{title, cover, review}}]
+// ── Mutable state ─────────────────────────────────────
+// ALL_STATE[year][rating] = [{{title, cover, review, rating, url}}]
+let ALL_STATE = {{}};
+let currentYear = YEARS[0];
+let state = null;  // reference into ALL_STATE[currentYear]
 
-function initState() {{
-  ALL_RATINGS.forEach(r => state[r] = []);
-  GAMES.forEach(g => {{
-    const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
-    state[r].push({{ title: g.title, cover: g.cover || '', review: g.review || '', rating: r }});
+function initAllState() {{
+  YEARS.forEach(yr => {{
+    ALL_STATE[yr] = {{}};
+    ALL_RATINGS.forEach(r => ALL_STATE[yr][r] = []);
+    (GAMES_BY_YEAR[yr] || []).forEach(g => {{
+      const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
+      ALL_STATE[yr][r].push({{
+        title:  g.title,
+        cover:  g.cover  || '',
+        review: g.review || '',
+        rating: r,
+        url:    g.url    || '',
+      }});
+    }});
   }});
+  state = ALL_STATE[currentYear];
+}}
+
+// ── Year tabs ─────────────────────────────────────────
+function buildYearTabs() {{
+  const container = document.getElementById('year-tabs');
+  container.innerHTML = '';
+  YEARS.forEach(yr => {{
+    const btn = document.createElement('button');
+    btn.className = 'year-tab' + (yr === currentYear ? ' active' : '');
+    btn.textContent = String(yr);
+    btn.dataset.year = yr;
+    btn.addEventListener('click', () => setYear(yr));
+    container.appendChild(btn);
+  }});
+}}
+
+function setYear(yr) {{
+  currentYear = yr;
+  state = ALL_STATE[yr];
+  document.querySelectorAll('.year-tab').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.year) === yr));
+  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
+  document.getElementById('year-label').textContent  = String(yr);
+  document.getElementById('header-meta').textContent =
+    `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
+  if (currentView === 'tier') renderTiers();
+  else renderList();
 }}
 
 // ── Dirty tracking ────────────────────────────────────
@@ -999,14 +1083,20 @@ function markDirty() {{
   document.getElementById('save-btn').classList.add('visible');
 }}
 
-// ── CSV export ────────────────────────────────────────
+// ── CSV export (all years) ────────────────────────────
 function saveCSV() {{
-  const rows = [['title', 'rating', 'review']];
-  ALL_RATINGS.forEach(r => {{
-    state[r].forEach(g => {{
-      const escaped = (s) => s.includes(',') || s.includes('"') || s.includes('\\n')
-        ? `"${{s.replace(/"/g, '""')}}"` : s;
-      rows.push([escaped(g.title), r, escaped(g.review)]);
+  const rows = [['title', 'rating', 'review', 'url', 'year_played']];
+  YEARS.forEach(yr => {{
+    const yrState = ALL_STATE[yr];
+    ALL_RATINGS.forEach(r => {{
+      (yrState[r] || []).forEach(g => {{
+        const esc = s => {{
+          s = s || '';
+          return s.includes(',') || s.includes('"') || s.includes('\\n')
+            ? `"${{s.replace(/"/g, '""')}}"` : s;
+        }};
+        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr)]);
+      }});
     }});
   }});
   const csv = rows.map(r => r.join(',')).join('\\n');
@@ -1026,8 +1116,8 @@ function saveCSV() {{
 }}
 
 // ── Drag state ────────────────────────────────────────
-let dragGame = null;      // {{title, fromRating}}
-let dragEl   = null;      // the DOM element being dragged
+let dragGame = null;
+let dragEl   = null;
 
 function escapeHtml(str) {{
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1038,7 +1128,6 @@ function getInitial(title) {{
 }}
 
 // ── List view ─────────────────────────────────────────
-
 function buildRow(game) {{
   const color = RATING_COLORS[game.rating] || '#888';
   const label = RATING_LABELS[game.rating] || game.rating;
@@ -1053,9 +1142,10 @@ function buildRow(game) {{
     : '';
 
   const row = document.createElement('div');
-  row.className = 'game-row';
+  row.className = 'game-row' + (game.url ? ' clickable' : '');
   row.dataset.rating = game.rating;
   row.style.setProperty('--row-accent', color);
+  if (game.url) row.addEventListener('click', () => window.open(game.url, '_blank', 'noopener'));
   row.innerHTML = `
     <div class="game-cover-wrap">${{coverHtml}}</div>
     <div class="game-body">
@@ -1070,32 +1160,31 @@ function buildRow(game) {{
 }}
 
 // ── Tier view ─────────────────────────────────────────
-
 function makeCoverItem(game, rating) {{
   const item = document.createElement('div');
   item.className = 'tier-cover-item';
   item.draggable = true;
-  item.dataset.title = game.title;
+  item.dataset.title  = game.title;
   item.dataset.rating = rating;
 
   const tooltip = document.createElement('span');
-  tooltip.className = 'cover-tooltip';
+  tooltip.className   = 'cover-tooltip';
   tooltip.textContent = game.title;
 
   const coverEl = game.cover
     ? (() => {{
         const i = document.createElement('img');
-        i.src = game.cover;
-        i.alt = game.title;
-        i.draggable = false;  // prevent browser image drag
-        i.onerror = function() {{
+        i.src      = game.cover;
+        i.alt      = game.title;
+        i.draggable = false;
+        i.onerror  = function() {{
           this.outerHTML = `<div class="tier-cover-placeholder">${{getInitial(game.title)}}</div>`;
         }};
         return i;
       }})()
     : (() => {{
         const d = document.createElement('div');
-        d.className = 'tier-cover-placeholder';
+        d.className   = 'tier-cover-placeholder';
         d.textContent = getInitial(game.title);
         return d;
       }})();
@@ -1103,58 +1192,51 @@ function makeCoverItem(game, rating) {{
   item.appendChild(tooltip);
   item.appendChild(coverEl);
 
-  // ── Drag events ──
+  // Click opens Backloggd page, but not if a drag just finished
+  let wasDragged = false;
   item.addEventListener('dragstart', e => {{
+    wasDragged = true;
     dragGame = {{ title: game.title, fromRating: rating }};
-    dragEl = item;
+    dragEl   = item;
     setTimeout(() => item.classList.add('dragging'), 0);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', game.title);
   }});
-
+  item.addEventListener('click', () => {{
+    if (wasDragged) {{ wasDragged = false; return; }}
+    if (game.url) window.open(game.url, '_blank', 'noopener');
+  }});
   item.addEventListener('dragend', () => {{
     item.classList.remove('dragging');
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
     dragGame = null;
-    dragEl = null;
+    dragEl   = null;
   }});
 
-  // Reorder within tier: highlight drop position
   item.addEventListener('dragover', e => {{
     if (!dragGame) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
     const rect = item.getBoundingClientRect();
-    const midX = rect.left + rect.width / 2;
-    if (e.clientX < midX) item.classList.add('drop-before');
+    if (e.clientX < rect.left + rect.width / 2) item.classList.add('drop-before');
   }});
-
-  item.addEventListener('dragleave', () => {{
-    item.classList.remove('drop-before');
-  }});
-
+  item.addEventListener('dragleave', () => item.classList.remove('drop-before'));
   item.addEventListener('drop', e => {{
     e.preventDefault();
     e.stopPropagation();
     if (!dragGame || dragGame.title === game.title) return;
-
-    const toRating = rating;
-    const rect = item.getBoundingClientRect();
+    const toRating    = rating;
+    const rect        = item.getBoundingClientRect();
     const insertBefore = e.clientX < rect.left + rect.width / 2;
-
-    // Remove from source tier
     const srcList = state[dragGame.fromRating];
-    const srcIdx = srcList.findIndex(g => g.title === dragGame.title);
+    const srcIdx  = srcList.findIndex(g => g.title === dragGame.title);
     const [moved] = srcList.splice(srcIdx, 1);
-    moved.rating = toRating;
-
-    // Insert into target tier
+    moved.rating  = toRating;
     const dstList = state[toRating];
-    const dstIdx = dstList.findIndex(g => g.title === game.title);
+    const dstIdx  = dstList.findIndex(g => g.title === game.title);
     dstList.splice(insertBefore ? dstIdx : dstIdx + 1, 0, moved);
-
     markDirty();
     renderTiers();
   }});
@@ -1172,13 +1254,11 @@ function buildTierRow(rating) {{
   row.dataset.tierRating = rating;
   row.style.setProperty('--tier-color', color);
 
-  // Label column
   const labelCol = document.createElement('div');
   labelCol.className = 'tier-label-col';
-
   if (rating === 'unrated') {{
     const span = document.createElement('span');
-    span.className = 'tier-rating-pill';
+    span.className   = 'tier-rating-pill';
     span.textContent = label;
     labelCol.appendChild(span);
   }} else {{
@@ -1191,58 +1271,41 @@ function buildTierRow(rating) {{
     }};
     labelCol.appendChild(img);
   }}
-
   row.appendChild(labelCol);
 
-  // Covers area — also a drop target
   const coversDiv = document.createElement('div');
   coversDiv.className = 'tier-covers';
   coversDiv.dataset.dropRating = rating;
 
   if (games.length === 0) {{
     const empty = document.createElement('span');
-    empty.className = 'tier-empty';
+    empty.className   = 'tier-empty';
     empty.textContent = 'Drop games here';
     coversDiv.appendChild(empty);
   }} else {{
     games.forEach(game => coversDiv.appendChild(makeCoverItem(game, rating)));
   }}
 
-  // Drop onto the covers area itself (append to end of tier)
   coversDiv.addEventListener('dragover', e => {{
     if (!dragGame) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     coversDiv.classList.add('drag-over');
   }});
-
   coversDiv.addEventListener('dragleave', e => {{
-    // Only remove if leaving the coversDiv entirely
-    if (!coversDiv.contains(e.relatedTarget)) {{
-      coversDiv.classList.remove('drag-over');
-    }}
+    if (!coversDiv.contains(e.relatedTarget)) coversDiv.classList.remove('drag-over');
   }});
-
   coversDiv.addEventListener('drop', e => {{
     e.preventDefault();
     coversDiv.classList.remove('drag-over');
     if (!dragGame) return;
-
-    const toRating = rating;
-
-    // If dropped on a cover item, that item's handler takes over — skip
     if (e.target.closest('.tier-cover-item')) return;
-
-    // Remove from source
     const srcList = state[dragGame.fromRating];
-    const srcIdx = srcList.findIndex(g => g.title === dragGame.title);
+    const srcIdx  = srcList.findIndex(g => g.title === dragGame.title);
     if (srcIdx === -1) return;
     const [moved] = srcList.splice(srcIdx, 1);
-    moved.rating = toRating;
-
-    // Append to end of target
-    state[toRating].push(moved);
-
+    moved.rating  = rating;
+    state[rating].push(moved);
     markDirty();
     renderTiers();
   }});
@@ -1252,24 +1315,22 @@ function buildTierRow(rating) {{
 }}
 
 // ── View & filter state ───────────────────────────────
-
 let currentFilter = 'all';
-let currentView = 'list';
+let currentView   = 'tier';
 
 function setView(view) {{
   currentView = view;
   document.getElementById('btn-list').classList.toggle('active', view === 'list');
   document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
   document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
-
   if (view === 'list') {{
-    document.getElementById('game-list').style.display = '';
-    document.getElementById('tier-view').style.display = 'none';
+    document.getElementById('game-list').style.display  = '';
+    document.getElementById('tier-view').style.display  = 'none';
     document.getElementById('game-count').style.display = '';
     renderList();
   }} else {{
-    document.getElementById('game-list').style.display = 'none';
-    document.getElementById('tier-view').style.display = '';
+    document.getElementById('game-list').style.display  = 'none';
+    document.getElementById('tier-view').style.display  = '';
     document.getElementById('game-count').style.display = 'none';
     renderTiers();
   }}
@@ -1283,22 +1344,20 @@ function setFilter(filter, btn) {{
 }}
 
 function renderList() {{
-  const list = document.getElementById('game-list');
+  const list    = document.getElementById('game-list');
   const countEl = document.getElementById('game-count');
   list.innerHTML = '';
-
   const allGames = ALL_RATINGS.flatMap(r => state[r]);
   const filtered = currentFilter === 'all'
     ? allGames
     : allGames.filter(g => g.rating === currentFilter);
-
   if (filtered.length === 0) {{
     list.innerHTML = '<div class="empty">No games with this rating yet.</div>';
     countEl.textContent = '';
     return;
   }}
-
-  const sorted = [...filtered].sort((a, b) => ALL_RATINGS.indexOf(a.rating) - ALL_RATINGS.indexOf(b.rating));
+  const sorted = [...filtered].sort((a, b) =>
+    ALL_RATINGS.indexOf(a.rating) - ALL_RATINGS.indexOf(b.rating));
   countEl.textContent = `${{sorted.length}} game${{sorted.length !== 1 ? 's' : ''}}`;
   sorted.forEach(game => list.appendChild(buildRow(game)));
 }}
@@ -1306,22 +1365,21 @@ function renderList() {{
 function renderTiers() {{
   const container = document.getElementById('tier-view');
   container.innerHTML = '';
-
   ORDER.forEach(rating => container.appendChild(buildTierRow(rating)));
-
-  // Unrated at bottom with divider
-  if (state['unrated'].length > 0 || true) {{  // always show unrated row
-    const divider = document.createElement('div');
-    divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
-    container.appendChild(divider);
-    container.appendChild(buildTierRow('unrated'));
-  }}
+  const divider = document.createElement('div');
+  divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
+  container.appendChild(divider);
+  container.appendChild(buildTierRow('unrated'));
 }}
 
 (function init() {{
-  initState();
+  initAllState();
+  buildYearTabs();
+  // Prime the year label / game count without triggering a redundant render
+  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
+  document.getElementById('year-label').textContent  = String(currentYear);
   document.getElementById('header-meta').textContent =
-    `${{GAMES.length}} game${{GAMES.length !== 1 ? 's' : ''}} logged`;
+    `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
   setView('tier');
 }})();
 </script>
@@ -1330,12 +1388,13 @@ function renderTiers() {{
 """
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
     out_path = sys.argv[2] if len(sys.argv) > 2 else 'index.html'
 
     if not os.path.exists(csv_path):
-        # Create empty CSV if it doesn't exist yet
         write_csv(csv_path, [])
         print(f"Created empty {csv_path}")
 
@@ -1343,27 +1402,51 @@ def main():
     games = read_csv(csv_path)
     print(f"  Found {len(games)} game(s).")
 
-    print(f"\nFetching game list from Backloggd...")
-    list_entries = asyncio.run(fetch_backloggd_list(BACKLOGGD_LIST_URL))
+    print(f"\nDiscovering year lists from Backloggd folder...")
+    year_lists = asyncio.run(fetch_year_lists(BACKLOGGD_FOLDER_URL))
 
-    list_cover_urls = {}
-    if list_entries:
-        games, added = merge_list_into_games(games, list_entries)
-        if added > 0:
-            print(f"  Added {added} new unrated game(s) to {csv_path}.")
+    all_cover_urls: dict[str, str] = {}
+    all_page_urls:  dict[str, str] = {}
+
+    if year_lists:
+        csv_changed = False
+
+        for year, list_url in year_lists:
+            print(f"\nFetching games for {year}...")
+            entries = asyncio.run(fetch_backloggd_list(list_url))
+            if not entries:
+                print(f"  Could not fetch list for {year}.")
+                continue
+            games, added = merge_list_into_games(games, entries, year=year)
+            if added:
+                print(f"  Added {added} new game(s) for {year}.")
+                csv_changed = True
+            all_cover_urls.update({e['title']: e['cover_url'] for e in entries if e.get('cover_url')})
+            all_page_urls.update( {e['title']: e['page_url']  for e in entries if e.get('page_url')})
+
+        # Backfill url for existing games that don't have one yet
+        for game in games:
+            if not game.get('url') and game['title'] in all_page_urls:
+                game['url'] = all_page_urls[game['title']]
+                csv_changed = True
+
+        if csv_changed:
             write_csv(csv_path, games)
+            print(f"\nCSV updated → {csv_path}")
         else:
-            print(f"  No new games to add.")
-        list_cover_urls = {e['title']: e['cover_url'] for e in list_entries if e.get('cover_url')}
-        print(f"  Cover URLs grabbed from list page: {len(list_cover_urls)}")
+            print(f"\nNo CSV changes.")
+
+        print(f"  Page URLs captured: {len(all_page_urls)}")
     else:
-        print(f"  Could not fetch list or list was empty.")
+        print("  ⚠  No year lists found — generating HTML from existing data only.")
+
+    years = [yr for yr, _ in year_lists] if year_lists else []
 
     print(f"\nFetching cover art...")
-    covers = asyncio.run(fetch_all_covers(games, list_cover_urls))
+    covers = asyncio.run(fetch_all_covers(games, all_cover_urls))
 
     print(f"\nGenerating {out_path}...")
-    html = generate_html(games, covers)
+    html = generate_html(games, covers, page_urls=all_page_urls, years=years)
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
