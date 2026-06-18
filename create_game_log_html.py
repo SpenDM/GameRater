@@ -22,7 +22,7 @@ from pathlib import Path
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-VALID_RATINGS = ['fantastic', 'great', 'good', 'okay', 'lame', 'awful', 'mixed']
+VALID_RATINGS = ['fantastic', 'great', 'good', 'okay', 'lame', 'mixed']
 
 RATING_LABELS = {
     'fantastic': 'Fantastic',
@@ -30,7 +30,6 @@ RATING_LABELS = {
     'good':      'Good',
     'okay':      'Okay',
     'lame':      'Lame',
-    'awful':     'Awful',
     'mixed':     'Mixed',
     'unrated':   'Unrated',
 }
@@ -41,7 +40,6 @@ RATING_COLORS = {
     'good':      '#2563eb',
     'okay':      '#c2620a',
     'lame':      '#7c5c3a',
-    'awful':     '#16a34a',
     'mixed':     '#6b7280',
     'unrated':   '#3a3a4a',
 }
@@ -495,12 +493,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       letter-spacing: -0.01em;
     }}
 
-    .header-meta {{
-      margin-top: 0.2rem;
-      color: var(--text-dim);
-      font-size: 0.9rem;
-    }}
-
     /* ── Year tabs ── */
     .year-tabs {{
       max-width: 1100px;
@@ -625,9 +617,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     }}
 
     .game-count {{
+      max-width: 1100px;
+      margin: 1rem auto 0;
+      padding: 0 2rem;
       font-size: 0.8rem;
       color: var(--text-muted);
-      margin-bottom: 1.25rem;
     }}
 
     .game-list {{
@@ -942,7 +936,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     /* ── Responsive ── */
     @media (max-width: 600px) {{
-      header, .year-tabs, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
+      header, .year-tabs, .game-count, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
       .game-body {{ padding: 0.75rem 0.9rem; }}
       .tier-label-col {{ width: 110px; }}
       .tier-rating-img {{ width: 64px; height: 64px; }}
@@ -955,13 +949,22 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 <body>
 
 <header>
-  <h1>Game <span>Log</span></h1>
-  <p class="header-meta" id="header-meta"></p>
+  <h1>Spencer's <span>Game Log</span></h1>
 </header>
 
 <div class="year-tabs" id="year-tabs"></div>
 
+<p class="game-count" id="game-count"></p>
+
 <div class="toolbar">
+  <div class="view-toggle">
+    <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+    </button>
+    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+    </button>
+  </div>
   <div class="filter-bar" id="filter-bar">
     <span class="filter-label">Filter</span>
     <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
@@ -971,21 +974,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
     <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
     <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
-    <button class="filter-btn" onclick="setFilter('awful', this)">Awful</button>
     <button class="filter-btn" onclick="setFilter('unrated', this)">Unrated</button>
-  </div>
-  <div class="view-toggle">
-    <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
-    </button>
-    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
-    </button>
   </div>
 </div>
 
 <main>
-  <p class="game-count" id="game-count"></p>
   <div class="game-list" id="game-list" style="display:none;"></div>
   <div class="tier-view" id="tier-view"></div>
 </main>
@@ -1005,7 +998,6 @@ const RATING_COLORS = {{
   good:      '#2563eb',
   okay:      '#c2620a',
   lame:      '#7c5c3a',
-  awful:     '#16a34a',
   mixed:     '#6b7280',
   unrated:   '#3a3a4a',
 }};
@@ -1016,12 +1008,11 @@ const RATING_LABELS = {{
   good:      'Good',
   okay:      'Okay',
   lame:      'Lame',
-  awful:     'Awful',
   mixed:     'Mixed',
   unrated:   'Unrated',
 }};
 
-const ORDER = ['fantastic','great','good','mixed','okay','lame','awful'];
+const ORDER = ['fantastic','great','good','mixed','okay','lame'];
 const ALL_RATINGS = [...ORDER, 'unrated'];
 
 // ── Mutable state ─────────────────────────────────────
@@ -1067,9 +1058,6 @@ function setYear(yr) {{
   state = ALL_STATE[yr];
   document.querySelectorAll('.year-tab').forEach(b =>
     b.classList.toggle('active', parseInt(b.dataset.year) === yr));
-  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
-  document.getElementById('header-meta').textContent =
-    `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
   if (currentView === 'tier') renderTiers();
   else renderList();
 }}
@@ -1347,14 +1335,12 @@ function setView(view) {{
   document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
   document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
   if (view === 'list') {{
-    document.getElementById('game-list').style.display  = '';
-    document.getElementById('tier-view').style.display  = 'none';
-    document.getElementById('game-count').style.display = '';
+    document.getElementById('game-list').style.display = '';
+    document.getElementById('tier-view').style.display = 'none';
     renderList();
   }} else {{
-    document.getElementById('game-list').style.display  = 'none';
-    document.getElementById('tier-view').style.display  = '';
-    document.getElementById('game-count').style.display = 'none';
+    document.getElementById('game-list').style.display = 'none';
+    document.getElementById('tier-view').style.display = '';
     renderTiers();
   }}
 }}
@@ -1393,15 +1379,14 @@ function renderTiers() {{
   divider.style.cssText = 'height:1px; background:var(--border); margin:8px 0;';
   container.appendChild(divider);
   container.appendChild(buildTierRow('unrated'));
+  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
+  document.getElementById('game-count').textContent =
+    `${{total}} game${{total !== 1 ? 's' : ''}}`;
 }}
 
 (function init() {{
   initAllState();
   buildYearTabs();
-  // Prime the year label / game count without triggering a redundant render
-  const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
-  document.getElementById('header-meta').textContent =
-    `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
   setView('tier');
 }})();
 </script>
