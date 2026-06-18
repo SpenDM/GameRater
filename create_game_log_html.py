@@ -956,7 +956,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
 <header>
   <h1>Game <span>Log</span></h1>
-  <p class="year-label" id="year-label"></p>
   <p class="header-meta" id="header-meta"></p>
 </header>
 
@@ -1069,7 +1068,6 @@ function setYear(yr) {{
   document.querySelectorAll('.year-tab').forEach(b =>
     b.classList.toggle('active', parseInt(b.dataset.year) === yr));
   const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
-  document.getElementById('year-label').textContent  = String(yr);
   document.getElementById('header-meta').textContent =
     `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
   if (currentView === 'tier') renderTiers();
@@ -1118,6 +1116,30 @@ function saveCSV() {{
 // ── Drag state ────────────────────────────────────────
 let dragGame = null;
 let dragEl   = null;
+
+let autoScrollRAF = null;
+
+function startAutoScroll(clientY) {{
+  const ZONE = 80, SPEED = 12;
+  cancelAutoScroll();
+  function tick() {{
+    const vh = window.innerHeight;
+    if (clientY < ZONE) {{
+      window.scrollBy(0, -SPEED * (1 - clientY / ZONE));
+    }} else if (clientY > vh - ZONE) {{
+      window.scrollBy(0, SPEED * (1 - (vh - clientY) / ZONE));
+    }}
+    autoScrollRAF = requestAnimationFrame(tick);
+  }}
+  autoScrollRAF = requestAnimationFrame(tick);
+}}
+
+function cancelAutoScroll() {{
+  if (autoScrollRAF) {{ cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }}
+}}
+
+document.addEventListener('dragover', e => {{ if (dragGame) startAutoScroll(e.clientY); }});
+document.addEventListener('dragend',  () => cancelAutoScroll());
 
 function escapeHtml(str) {{
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1210,6 +1232,7 @@ function makeCoverItem(game, rating) {{
     item.classList.remove('dragging');
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     document.querySelectorAll('.drop-before').forEach(el => el.classList.remove('drop-before'));
+    cancelAutoScroll();
     dragGame = null;
     dragEl   = null;
   }});
@@ -1280,7 +1303,7 @@ function buildTierRow(rating) {{
   if (games.length === 0) {{
     const empty = document.createElement('span');
     empty.className   = 'tier-empty';
-    empty.textContent = 'Drop games here';
+    empty.textContent = 'None';
     coversDiv.appendChild(empty);
   }} else {{
     games.forEach(game => coversDiv.appendChild(makeCoverItem(game, rating)));
@@ -1377,7 +1400,6 @@ function renderTiers() {{
   buildYearTabs();
   // Prime the year label / game count without triggering a redundant render
   const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
-  document.getElementById('year-label').textContent  = String(currentYear);
   document.getElementById('header-meta').textContent =
     `${{total}} game${{total !== 1 ? 's' : ''}} logged`;
   setView('tier');
