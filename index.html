@@ -187,11 +187,18 @@
     }
 
     .game-count {
-      max-width: 1100px;
-      margin: 1rem auto 0;
-      padding: 0 2rem;
+      margin: 0;
+      text-align: center;
       font-size: 0.8rem;
       color: var(--text-muted);
+    }
+
+    .view-toggle-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
     }
 
     .game-list {
@@ -504,10 +511,6 @@
       gap: 0.25rem;
     }
 
-    .goty-crown {
-      color: #d4a017;
-    }
-
     .goty-slot-cover-box {
       position: relative;
       cursor: grab;
@@ -675,19 +678,20 @@
 
 <div class="year-tabs" id="year-tabs"></div>
 
-<p class="game-count" id="game-count"></p>
-
 <div class="toolbar">
-  <div class="view-toggle">
-    <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
-    </button>
-    <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
-    </button>
-    <button class="view-btn" id="btn-goty" onclick="setView('goty')" title="GOTY view">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
-    </button>
+  <div class="view-toggle-col">
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+      </button>
+      <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+      </button>
+      <button class="view-btn" id="btn-goty" onclick="setView('goty')" title="GOTY view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <p class="game-count" id="game-count"></p>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="filter-label">Filter</span>
@@ -787,6 +791,7 @@ function setYear(yr) {
   document.querySelectorAll('.year-tab').forEach(b =>
     b.classList.toggle('active', parseInt(b.dataset.year) === yr));
   if (currentView === 'tier') renderTiers();
+  else if (currentView === 'goty') renderGoty();
   else renderList();
 }
 
@@ -1117,26 +1122,23 @@ let gotyDragGame = null;
 document.addEventListener('dragover', e => { if (gotyDragGame) startAutoScroll(e.clientY); });
 document.addEventListener('dragend',  () => { if (gotyDragGame) cancelAutoScroll(); });
 
-function findGameByTitle(title) {
-  for (const r of ALL_RATINGS) {
-    const found = (state[r] || []).find(g => g.title === title);
-    if (found) return found;
-  }
-  return null;
+function allGamesFlat() {
+  return YEARS.flatMap(yr => ALL_RATINGS.flatMap(r => ALL_STATE[yr][r] || []));
 }
 
-function findCategoryHolder(key) {
-  for (const r of ALL_RATINGS) {
-    const found = (state[r] || []).find(g => (g.categories || []).includes(key));
-    if (found) return found;
-  }
-  return null;
+function findGameByTitle(title) {
+  return allGamesFlat().find(g => g.title === title) || null;
+}
+
+function findCategoryHolder(key, year) {
+  return allGamesFlat().find(g =>
+    parseInt(g.release_year, 10) === year && (g.categories || []).includes(key)) || null;
 }
 
 function assignCategory(key, title) {
   const game = findGameByTitle(title);
   if (!game) return;
-  const holder = findCategoryHolder(key);
+  const holder = findCategoryHolder(key, currentYear);
   if (holder && holder.title !== game.title) {
     holder.categories = holder.categories.filter(c => c !== key);
   }
@@ -1150,7 +1152,7 @@ function moveCategory(key, fromCategory, title) {
   const game = findGameByTitle(title);
   if (!game) return;
   game.categories = game.categories.filter(c => c !== fromCategory);
-  const holder = findCategoryHolder(key);
+  const holder = findCategoryHolder(key, currentYear);
   if (holder && holder.title !== game.title) {
     holder.categories = holder.categories.filter(c => c !== key);
   }
@@ -1174,14 +1176,7 @@ function buildGotySlot(cat, large) {
   const artWrap = document.createElement('div');
   artWrap.className = 'goty-slot-art';
 
-  if (large) {
-    const crown = document.createElement('div');
-    crown.className = 'goty-crown';
-    crown.innerHTML = '<svg width="28" height="28" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/></svg>';
-    artWrap.appendChild(crown);
-  }
-
-  const holder = findCategoryHolder(cat.key);
+  const holder = findCategoryHolder(cat.key, currentYear);
 
   const artBox = document.createElement('div');
   artBox.className = 'goty-slot-cover-box';
@@ -1347,8 +1342,9 @@ function renderGoty() {
   const candidatesWrap = document.createElement('div');
   candidatesWrap.className = 'goty-candidates tier-covers';
 
-  const candidates = ALL_RATINGS.flatMap(r =>
-    (state[r] || []).filter(g => parseInt(g.release_year, 10) === currentYear));
+  const candidates = allGamesFlat()
+    .filter(g => parseInt(g.release_year, 10) === currentYear)
+    .sort((a, b) => ALL_RATINGS.indexOf(a.rating) - ALL_RATINGS.indexOf(b.rating));
 
   if (candidates.length === 0) {
     const empty = document.createElement('span');
