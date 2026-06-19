@@ -46,6 +46,18 @@ RATING_COLORS = {
 
 BACKLOGGD_FOLDER_URL = 'https://backloggd.com/u/smorrs/lists/folder/games-played-by-year/'
 
+GOTY_CATEGORIES = [
+    {'key': 'goty',            'label': 'Game of the Year'},
+    {'key': 'puzzle_strategy', 'label': 'Puzzle/Strategy'},
+    {'key': 'action',          'label': 'Action'},
+    {'key': 'pickup_n_play',   'label': "Pick Up 'n Play"},
+    {'key': 'novelty',         'label': 'Novelty'},
+    {'key': 'narrative',       'label': 'Narrative'},
+    {'key': 'world',           'label': 'World'},
+    {'key': 'visuals',         'label': 'Visuals'},
+    {'key': 'audio',           'label': 'Audio'},
+]
+
 
 # ── CSV I/O ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +71,8 @@ def read_csv(path: str) -> list[dict]:
             review = row.get('review', '').strip()
             url = row.get('url', '').strip()
             year_played = row.get('year_played', '').strip()
+            release_year = row.get('release_year', '').strip()
+            goty_categories = row.get('goty_categories', '').strip()
 
             if not title:
                 print(f"  Warning: row {i} has no title, skipping.")
@@ -69,14 +83,16 @@ def read_csv(path: str) -> list[dict]:
                 rating = 'unrated'
 
             games.append({'title': title, 'rating': rating, 'review': review,
-                          'url': url, 'year_played': year_played})
+                          'url': url, 'year_played': year_played,
+                          'release_year': release_year, 'goty_categories': goty_categories})
     return games
 
 
 def write_csv(path: str, games: list[dict]) -> None:
     with open(path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(
-            f, fieldnames=['title', 'rating', 'review', 'url', 'year_played'],
+            f, fieldnames=['title', 'rating', 'review', 'url', 'year_played',
+                           'release_year', 'goty_categories'],
             extrasaction='ignore',
         )
         writer.writeheader()
@@ -370,6 +386,57 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
     return covers
 
 
+async def fetch_release_years(games: list[dict]) -> dict[str, str]:
+    """Visit each game's Backloggd page and scrape its release year."""
+    to_fetch = [g for g in games if g.get('url') and not g.get('release_year')]
+    years: dict[str, str] = {}
+    if not to_fetch:
+        return years
+
+    try:
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
+    except ImportError as e:
+        missing = 'playwright-stealth' if 'stealth' in str(e) else 'playwright'
+        print(f"  ⚠  Missing package: {missing}")
+        print(f"     Run: pip install playwright playwright-stealth && python3 -m playwright install chromium")
+        return years
+
+    print(f"  Fetching release years for {len(to_fetch)} game(s)...")
+    stealth = Stealth()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(**_make_stealth_launch_args())
+        context = await browser.new_context(**_make_stealth_context_args())
+
+        for game in to_fetch:
+            title = game['title']
+            url = game['url']
+            print(f"  → {title}", end='', flush=True)
+            page = await _stealth_page(context, stealth)
+            try:
+                response = await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                if response and response.status >= 400:
+                    print(f" ✗ (HTTP {response.status})")
+                    await page.close()
+                    continue
+                html = await page.evaluate("() => document.documentElement.outerHTML")
+                m = re.search(r'release_year:(\d{4})', html)
+                if m:
+                    years[title] = m.group(1)
+                    print(f" ✓ ({m.group(1)})")
+                else:
+                    print(" ✗ (not found)")
+            except Exception as e:
+                print(f" ✗ ({e})")
+            await page.close()
+
+        await browser.close()
+
+    print(f"  Release years found: {len(years)}/{len(to_fetch)}")
+    return years
+
+
 # ── CSV merge ─────────────────────────────────────────────────────────────────
 
 def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int) -> tuple[list[dict], int]:
@@ -384,6 +451,8 @@ def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int
                 'review': '',
                 'url': entry.get('page_url') or '',
                 'year_played': str(year),
+                'release_year': '',
+                'goty_categories': '',
             })
             existing.add(entry['title'].lower())
             added += 1
@@ -405,6 +474,10 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
         entry = dict(g)
         entry['cover'] = covers.get(g['title']) or ''
         entry['url'] = g.get('url') or page_urls.get(g['title']) or ''
+        entry['release_year'] = g.get('release_year') or ''
+        cats = (g.get('goty_categories') or '').strip()
+        entry['categories'] = [c for c in cats.split(';') if c]
+        del entry['goty_categories']
         games_with_meta.append(entry)
 
     # Determine year list (fallback: derive from game data)
@@ -429,6 +502,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     games_by_year_json = json.dumps(games_by_year, ensure_ascii=False)
     years_json = json.dumps(years_sorted)
+    goty_categories_json = json.dumps(GOTY_CATEGORIES, ensure_ascii=False)
 
     rating_css_vars = '\n'.join(
         f'    --color-{r}: {c};' for r, c in RATING_COLORS.items()
@@ -896,6 +970,154 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       border-radius: 4px;
     }}
 
+    /* ── GOTY view ── */
+    .goty-view {{
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }}
+
+    .goty-slots {{
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }}
+
+    .goty-row-main {{
+      display: flex;
+      justify-content: center;
+    }}
+
+    .goty-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }}
+
+    .goty-slot {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }}
+
+    .goty-slot-art {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }}
+
+    .goty-crown {{
+      color: #d4a017;
+    }}
+
+    .goty-slot-cover-box {{
+      position: relative;
+      cursor: grab;
+    }}
+
+    .goty-slot-cover-box.dragging {{
+      opacity: 0.35;
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }}
+
+    .goty-slot-cover {{
+      display: block;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }}
+
+    .goty-slot-goty .goty-slot-cover {{
+      width: 220px;
+      height: 293px;
+    }}
+
+    .goty-grid .goty-slot-cover {{
+      width: 130px;
+      height: 173px;
+    }}
+
+    .goty-slot-placeholder {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      color: var(--text-muted);
+      font-size: 2rem;
+    }}
+
+    .goty-slot-empty {{
+      width: 130px;
+      height: 173px;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }}
+
+    .goty-slot-goty .goty-slot-empty {{
+      width: 220px;
+      height: 293px;
+    }}
+
+    .goty-slot.drag-over .goty-slot-empty,
+    .goty-slot.drag-over .goty-slot-cover-box {{
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }}
+
+    .goty-remove-btn {{
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: #0f0f13;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }}
+
+    .goty-remove-btn:hover {{ background: var(--surface2); color: var(--accent); }}
+
+    .goty-slot-label {{
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      font-size: 0.85rem;
+    }}
+
+    .goty-slot-goty .goty-slot-label {{
+      font-size: 1.1rem;
+    }}
+
+    .goty-candidates-heading {{
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      padding-top: 1.25rem;
+    }}
+
+    .goty-candidates {{
+      background: transparent;
+      padding: 0;
+    }}
+
     /* ── Save button ── */
     .save-btn {{
       position: fixed;
@@ -942,6 +1164,9 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       .tier-rating-img {{ width: 64px; height: 64px; }}
       .tier-cover-item {{ width: 66px; }}
       .tier-cover-item img, .tier-cover-placeholder {{ width: 66px; height: 88px; }}
+      .goty-grid {{ grid-template-columns: repeat(2, 1fr); }}
+      .goty-slot-goty .goty-slot-cover, .goty-slot-goty .goty-slot-empty {{ width: 150px; height: 200px; }}
+      .goty-grid .goty-slot-cover, .goty-grid .goty-slot-empty {{ width: 96px; height: 128px; }}
       .save-btn {{ bottom: 1rem; right: 1rem; }}
     }}
   </style>
@@ -964,6 +1189,9 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
     </button>
+    <button class="view-btn" id="btn-goty" onclick="setView('goty')" title="GOTY view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
+    </button>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="filter-label">Filter</span>
@@ -981,6 +1209,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 <main>
   <div class="game-list" id="game-list" style="display:none;"></div>
   <div class="tier-view" id="tier-view"></div>
+  <div class="goty-view" id="goty-view" style="display:none;"></div>
 </main>
 
 <button class="save-btn" id="save-btn" onclick="saveCSV()" title="Download updated CSV">
@@ -991,6 +1220,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 <script>
 const YEARS = {years_json};
 const GAMES_BY_YEAR = {games_by_year_json};
+const GOTY_CATEGORIES = {goty_categories_json};
 
 const RATING_COLORS = {{
   fantastic: '#d4a017',
@@ -1028,11 +1258,13 @@ function initAllState() {{
     (GAMES_BY_YEAR[yr] || []).forEach(g => {{
       const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
       ALL_STATE[yr][r].push({{
-        title:  g.title,
-        cover:  g.cover  || '',
-        review: g.review || '',
-        rating: r,
-        url:    g.url    || '',
+        title:        g.title,
+        cover:        g.cover  || '',
+        review:       g.review || '',
+        rating:       r,
+        url:          g.url    || '',
+        release_year: g.release_year || '',
+        categories:   Array.isArray(g.categories) ? g.categories.slice() : [],
       }});
     }});
   }});
@@ -1071,7 +1303,7 @@ function markDirty() {{
 
 // ── CSV export (all years) ────────────────────────────
 function saveCSV() {{
-  const rows = [['title', 'rating', 'review', 'url', 'year_played']];
+  const rows = [['title', 'rating', 'review', 'url', 'year_played', 'release_year', 'goty_categories']];
   YEARS.forEach(yr => {{
     const yrState = ALL_STATE[yr];
     ALL_RATINGS.forEach(r => {{
@@ -1081,7 +1313,8 @@ function saveCSV() {{
           return s.includes(',') || s.includes('"') || s.includes('\\n')
             ? `"${{s.replace(/"/g, '""')}}"` : s;
         }};
-        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr)]);
+        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr),
+                   esc(g.release_year), esc((g.categories || []).join(';'))]);
       }});
     }});
   }});
@@ -1333,16 +1566,14 @@ function setView(view) {{
   currentView = view;
   document.getElementById('btn-list').classList.toggle('active', view === 'list');
   document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
-  document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
-  if (view === 'list') {{
-    document.getElementById('game-list').style.display = '';
-    document.getElementById('tier-view').style.display = 'none';
-    renderList();
-  }} else {{
-    document.getElementById('game-list').style.display = 'none';
-    document.getElementById('tier-view').style.display = '';
-    renderTiers();
-  }}
+  document.getElementById('btn-goty').classList.toggle('active', view === 'goty');
+  document.getElementById('filter-bar').style.display = view === 'list' ? '' : 'none';
+  document.getElementById('game-list').style.display = view === 'list' ? '' : 'none';
+  document.getElementById('tier-view').style.display = view === 'tier' ? '' : 'none';
+  document.getElementById('goty-view').style.display  = view === 'goty' ? '' : 'none';
+  if (view === 'list') renderList();
+  else if (view === 'tier') renderTiers();
+  else renderGoty();
 }}
 
 function setFilter(filter, btn) {{
@@ -1382,6 +1613,260 @@ function renderTiers() {{
   const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
   document.getElementById('game-count').textContent =
     `${{total}} game${{total !== 1 ? 's' : ''}}`;
+}}
+
+// ── GOTY view ─────────────────────────────────────────
+let gotyDragGame = null;
+
+document.addEventListener('dragover', e => {{ if (gotyDragGame) startAutoScroll(e.clientY); }});
+document.addEventListener('dragend',  () => {{ if (gotyDragGame) cancelAutoScroll(); }});
+
+function findGameByTitle(title) {{
+  for (const r of ALL_RATINGS) {{
+    const found = (state[r] || []).find(g => g.title === title);
+    if (found) return found;
+  }}
+  return null;
+}}
+
+function findCategoryHolder(key) {{
+  for (const r of ALL_RATINGS) {{
+    const found = (state[r] || []).find(g => (g.categories || []).includes(key));
+    if (found) return found;
+  }}
+  return null;
+}}
+
+function assignCategory(key, title) {{
+  const game = findGameByTitle(title);
+  if (!game) return;
+  const holder = findCategoryHolder(key);
+  if (holder && holder.title !== game.title) {{
+    holder.categories = holder.categories.filter(c => c !== key);
+  }}
+  if (!game.categories.includes(key)) game.categories.push(key);
+  markDirty();
+  renderGoty();
+}}
+
+function moveCategory(key, fromCategory, title) {{
+  if (key === fromCategory) return;
+  const game = findGameByTitle(title);
+  if (!game) return;
+  game.categories = game.categories.filter(c => c !== fromCategory);
+  const holder = findCategoryHolder(key);
+  if (holder && holder.title !== game.title) {{
+    holder.categories = holder.categories.filter(c => c !== key);
+  }}
+  if (!game.categories.includes(key)) game.categories.push(key);
+  markDirty();
+  renderGoty();
+}}
+
+function removeCategory(key, title) {{
+  const game = findGameByTitle(title);
+  if (!game) return;
+  game.categories = game.categories.filter(c => c !== key);
+  markDirty();
+  renderGoty();
+}}
+
+function buildGotySlot(cat, large) {{
+  const slot = document.createElement('div');
+  slot.className = 'goty-slot' + (large ? ' goty-slot-goty' : '');
+
+  const artWrap = document.createElement('div');
+  artWrap.className = 'goty-slot-art';
+
+  if (large) {{
+    const crown = document.createElement('div');
+    crown.className = 'goty-crown';
+    crown.innerHTML = '<svg width="28" height="28" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/></svg>';
+    artWrap.appendChild(crown);
+  }}
+
+  const holder = findCategoryHolder(cat.key);
+
+  const artBox = document.createElement('div');
+  artBox.className = 'goty-slot-cover-box';
+
+  if (holder) {{
+    let wasDragged = false;
+    const img = holder.cover
+      ? (() => {{
+          const i = document.createElement('img');
+          i.className = 'goty-slot-cover';
+          i.src = holder.cover;
+          i.alt = holder.title;
+          i.draggable = false;
+          i.onerror = function() {{
+            this.outerHTML = `<div class="goty-slot-cover goty-slot-placeholder">${{getInitial(holder.title)}}</div>`;
+          }};
+          return i;
+        }})()
+      : (() => {{
+          const d = document.createElement('div');
+          d.className = 'goty-slot-cover goty-slot-placeholder';
+          d.textContent = getInitial(holder.title);
+          return d;
+        }})();
+    artBox.draggable = true;
+    artBox.appendChild(img);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'goty-remove-btn';
+    removeBtn.title = 'Remove from this award';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', e => {{
+      e.stopPropagation();
+      removeCategory(cat.key, holder.title);
+    }});
+    artBox.appendChild(removeBtn);
+
+    artBox.addEventListener('dragstart', e => {{
+      wasDragged = true;
+      gotyDragGame = {{ title: holder.title, mode: 'slot', fromCategory: cat.key }};
+      setTimeout(() => artBox.classList.add('dragging'), 0);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', holder.title);
+    }});
+    artBox.addEventListener('dragend', () => {{
+      artBox.classList.remove('dragging');
+      gotyDragGame = null;
+    }});
+    artBox.addEventListener('click', () => {{
+      if (wasDragged) {{ wasDragged = false; return; }}
+      if (holder.url) window.open(holder.url, '_blank', 'noopener');
+    }});
+  }} else {{
+    artBox.classList.add('goty-slot-empty');
+  }}
+
+  artWrap.appendChild(artBox);
+  slot.appendChild(artWrap);
+
+  const label = document.createElement('div');
+  label.className = 'goty-slot-label';
+  label.textContent = cat.label;
+  slot.appendChild(label);
+
+  slot.addEventListener('dragover', e => {{
+    if (!gotyDragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    slot.classList.add('drag-over');
+  }});
+  slot.addEventListener('dragleave', e => {{
+    if (!slot.contains(e.relatedTarget)) slot.classList.remove('drag-over');
+  }});
+  slot.addEventListener('drop', e => {{
+    e.preventDefault();
+    slot.classList.remove('drag-over');
+    if (!gotyDragGame) return;
+    if (gotyDragGame.mode === 'candidate') assignCategory(cat.key, gotyDragGame.title);
+    else if (gotyDragGame.mode === 'slot') moveCategory(cat.key, gotyDragGame.fromCategory, gotyDragGame.title);
+    gotyDragGame = null;
+  }});
+
+  return slot;
+}}
+
+function buildGotyCandidate(game) {{
+  const item = document.createElement('div');
+  item.className = 'tier-cover-item';
+  item.draggable = true;
+
+  const tooltip = document.createElement('span');
+  tooltip.className   = 'cover-tooltip';
+  tooltip.textContent = game.title;
+
+  const coverEl = game.cover
+    ? (() => {{
+        const i = document.createElement('img');
+        i.src = game.cover;
+        i.alt = game.title;
+        i.draggable = false;
+        i.onerror = function() {{
+          this.outerHTML = `<div class="tier-cover-placeholder">${{getInitial(game.title)}}</div>`;
+        }};
+        return i;
+      }})()
+    : (() => {{
+        const d = document.createElement('div');
+        d.className   = 'tier-cover-placeholder';
+        d.textContent = getInitial(game.title);
+        return d;
+      }})();
+
+  item.appendChild(tooltip);
+  item.appendChild(coverEl);
+
+  let wasDragged = false;
+  item.addEventListener('dragstart', e => {{
+    wasDragged = true;
+    gotyDragGame = {{ title: game.title, mode: 'candidate' }};
+    setTimeout(() => item.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', game.title);
+  }});
+  item.addEventListener('dragend', () => {{
+    item.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    cancelAutoScroll();
+    gotyDragGame = null;
+  }});
+  item.addEventListener('click', () => {{
+    if (wasDragged) {{ wasDragged = false; return; }}
+    if (game.url) window.open(game.url, '_blank', 'noopener');
+  }});
+
+  return item;
+}}
+
+function renderGoty() {{
+  const container = document.getElementById('goty-view');
+  container.innerHTML = '';
+
+  const slotsWrap = document.createElement('div');
+  slotsWrap.className = 'goty-slots';
+
+  const gotyCat = GOTY_CATEGORIES[0];
+  const gotyRow = document.createElement('div');
+  gotyRow.className = 'goty-row-main';
+  gotyRow.appendChild(buildGotySlot(gotyCat, true));
+  slotsWrap.appendChild(gotyRow);
+
+  const grid = document.createElement('div');
+  grid.className = 'goty-grid';
+  GOTY_CATEGORIES.slice(1).forEach(cat => grid.appendChild(buildGotySlot(cat, false)));
+  slotsWrap.appendChild(grid);
+
+  container.appendChild(slotsWrap);
+
+  const heading = document.createElement('div');
+  heading.className = 'goty-candidates-heading';
+  heading.textContent = 'Candidates';
+  container.appendChild(heading);
+
+  const candidatesWrap = document.createElement('div');
+  candidatesWrap.className = 'goty-candidates tier-covers';
+
+  const candidates = ALL_RATINGS.flatMap(r =>
+    (state[r] || []).filter(g => parseInt(g.release_year, 10) === currentYear));
+
+  if (candidates.length === 0) {{
+    const empty = document.createElement('span');
+    empty.className   = 'tier-empty';
+    empty.textContent = 'No games released in ' + currentYear + ' on this list.';
+    candidatesWrap.appendChild(empty);
+  }} else {{
+    candidates.forEach(game => candidatesWrap.appendChild(buildGotyCandidate(game)));
+  }}
+
+  container.appendChild(candidatesWrap);
+
+  document.getElementById('game-count').textContent =
+    `${{candidates.length}} candidate${{candidates.length !== 1 ? 's' : ''}}`;
 }}
 
 (function init() {{
@@ -1448,6 +1933,15 @@ def main():
         print("  ⚠  No year lists found — generating HTML from existing data only.")
 
     years = [yr for yr, _ in year_lists] if year_lists else []
+
+    print(f"\nFetching release years...")
+    release_years = asyncio.run(fetch_release_years(games))
+    if release_years:
+        for game in games:
+            if game['title'] in release_years:
+                game['release_year'] = release_years[game['title']]
+        write_csv(csv_path, games)
+        print(f"  CSV updated with release years → {csv_path}")
 
     print(f"\nFetching cover art...")
     covers = asyncio.run(fetch_all_covers(games, all_cover_urls))

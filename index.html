@@ -466,6 +466,154 @@
       border-radius: 4px;
     }
 
+    /* ── GOTY view ── */
+    .goty-view {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .goty-slots {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .goty-row-main {
+      display: flex;
+      justify-content: center;
+    }
+
+    .goty-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+
+    .goty-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .goty-slot-art {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .goty-crown {
+      color: #d4a017;
+    }
+
+    .goty-slot-cover-box {
+      position: relative;
+      cursor: grab;
+    }
+
+    .goty-slot-cover-box.dragging {
+      opacity: 0.35;
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+
+    .goty-slot-cover {
+      display: block;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .goty-slot-goty .goty-slot-cover {
+      width: 220px;
+      height: 293px;
+    }
+
+    .goty-grid .goty-slot-cover {
+      width: 130px;
+      height: 173px;
+    }
+
+    .goty-slot-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      color: var(--text-muted);
+      font-size: 2rem;
+    }
+
+    .goty-slot-empty {
+      width: 130px;
+      height: 173px;
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .goty-slot-goty .goty-slot-empty {
+      width: 220px;
+      height: 293px;
+    }
+
+    .goty-slot.drag-over .goty-slot-empty,
+    .goty-slot.drag-over .goty-slot-cover-box {
+      outline: 2px dashed var(--accent);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+
+    .goty-remove-btn {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: #0f0f13;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .goty-remove-btn:hover { background: var(--surface2); color: var(--accent); }
+
+    .goty-slot-label {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      font-size: 0.85rem;
+    }
+
+    .goty-slot-goty .goty-slot-label {
+      font-size: 1.1rem;
+    }
+
+    .goty-candidates-heading {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      padding-top: 1.25rem;
+    }
+
+    .goty-candidates {
+      background: transparent;
+      padding: 0;
+    }
+
     /* ── Save button ── */
     .save-btn {
       position: fixed;
@@ -512,6 +660,9 @@
       .tier-rating-img { width: 64px; height: 64px; }
       .tier-cover-item { width: 66px; }
       .tier-cover-item img, .tier-cover-placeholder { width: 66px; height: 88px; }
+      .goty-grid { grid-template-columns: repeat(2, 1fr); }
+      .goty-slot-goty .goty-slot-cover, .goty-slot-goty .goty-slot-empty { width: 150px; height: 200px; }
+      .goty-grid .goty-slot-cover, .goty-grid .goty-slot-empty { width: 96px; height: 128px; }
       .save-btn { bottom: 1rem; right: 1rem; }
     }
   </style>
@@ -534,6 +685,9 @@
     <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
     </button>
+    <button class="view-btn" id="btn-goty" onclick="setView('goty')" title="GOTY view">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
+    </button>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="filter-label">Filter</span>
@@ -551,6 +705,7 @@
 <main>
   <div class="game-list" id="game-list" style="display:none;"></div>
   <div class="tier-view" id="tier-view"></div>
+  <div class="goty-view" id="goty-view" style="display:none;"></div>
 </main>
 
 <button class="save-btn" id="save-btn" onclick="saveCSV()" title="Download updated CSV">
@@ -560,7 +715,8 @@
 
 <script>
 const YEARS = [2026, 2025];
-const GAMES_BY_YEAR = {"2026": [{"title": "The Séance of Blake Manor", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-seance-of-blake-manor/", "year_played": "2026", "cover": "covers\\the-s-ance-of-blake-manor.jpg"}, {"title": "Donkey Kong Bananza", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/donkey-kong-bananza/", "year_played": "2026", "cover": "covers\\donkey-kong-bananza.jpg"}, {"title": "Mina the Hollower", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/mina-the-hollower/", "year_played": "2026", "cover": "covers\\mina-the-hollower.jpg"}, {"title": "Pokémon Pokopia", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/pokemon-pokopia/", "year_played": "2026", "cover": "covers\\pok-mon-pokopia.jpg"}, {"title": "Terra Nil", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/terra-nil--1/", "year_played": "2026", "cover": "covers\\terra-nil.jpg"}, {"title": "No Case Should Remain Unsolved", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/no-case-should-remain-unsolved/", "year_played": "2026", "cover": "covers\\no-case-should-remain-unsolved.jpg"}, {"title": "Pluto", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/pluto/", "year_played": "2026", "cover": "covers\\pluto.jpg"}, {"title": "Öoo", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/ooo--1/", "year_played": "2026", "cover": "covers\\oo.jpg"}, {"title": "The Ratline", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/the-ratline/", "year_played": "2026", "cover": "covers\\the-ratline.jpg"}, {"title": "Paranormasight: The Mermaid's Curse", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/paranormasight-the-mermaids-curse/", "year_played": "2026", "cover": "covers\\paranormasight-the-mermaid-s-curse.jpg"}, {"title": "Her Story", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/her-story/", "year_played": "2026", "cover": "covers\\her-story.jpg"}, {"title": "Prince of Persia: The Lost Crown", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/prince-of-persia-the-lost-crown/", "year_played": "2026", "cover": "covers\\prince-of-persia-the-lost-crown.jpg"}, {"title": "13 Sentinels: Aegis Rim", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/13-sentinels-aegis-rim/", "year_played": "2026", "cover": "covers\\13-sentinels-aegis-rim.jpg"}, {"title": "Lucifer Within Us", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/lucifer-within-us/", "year_played": "2026", "cover": "covers\\lucifer-within-us.jpg"}, {"title": "Tender Loving Care", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/tender-loving-care/", "year_played": "2026", "cover": "covers\\tender-loving-care.jpg"}, {"title": "Mewgenics", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/mewgenics/", "year_played": "2026", "cover": "covers\\mewgenics.jpg"}, {"title": "7 Days to End with You", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/7-days-to-end-with-you/", "year_played": "2026", "cover": "covers\\7-days-to-end-with-you.jpg"}, {"title": "Titanium Court", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/titanium-court/", "year_played": "2026", "cover": "covers\\titanium-court.jpg"}, {"title": "Easy Delivery Co.", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/easy-delivery-co/", "year_played": "2026", "cover": "covers\\easy-delivery-co.jpg"}, {"title": "Despelote", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/despelote/", "year_played": "2026", "cover": "covers\\despelote.jpg"}, {"title": "Pragmata", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/pragmata/", "year_played": "2026", "cover": "covers\\pragmata.jpg"}, {"title": "A Dance of Fire and Ice", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/a-dance-of-fire-and-ice/", "year_played": "2026", "cover": "covers\\a-dance-of-fire-and-ice.jpg"}, {"title": "Big Hops", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/big-hops/", "year_played": "2026", "cover": "covers\\big-hops.jpg"}, {"title": "Cairn", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/cairn--3/", "year_played": "2026", "cover": "covers\\cairn.jpg"}, {"title": "Botany Manor", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/botany-manor/", "year_played": "2026", "cover": "covers\\botany-manor.jpg"}, {"title": "Metal Garden", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/metal-garden/", "year_played": "2026", "cover": "covers\\metal-garden.jpg"}, {"title": "Strange Jigsaws", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/strange-jigsaws/", "year_played": "2026", "cover": "covers\\strange-jigsaws.jpg"}, {"title": "Slay the Princess", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/slay-the-princess/", "year_played": "2026", "cover": "covers\\slay-the-princess.jpg"}, {"title": "Detective Instinct: Farewell, My Beloved", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/detective-instinct-farewell-my-beloved/", "year_played": "2026", "cover": "covers\\detective-instinct-farewell-my-beloved.jpg"}, {"title": "ZeroRanger", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/zeroranger/", "year_played": "2026", "cover": "covers\\zeroranger.jpg"}, {"title": "Antichamber", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/antichamber/", "year_played": "2026", "cover": "covers\\antichamber.jpg"}, {"title": "Heroine's Quest: The Herald of Ragnarok", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/heroines-quest-the-herald-of-ragnarok/", "year_played": "2026", "cover": "covers\\heroine-s-quest-the-herald-of-ragnarok.jpg"}, {"title": "Lonely Mountains: Downhill", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/lonely-mountains-downhill/", "year_played": "2026", "cover": "covers\\lonely-mountains-downhill.jpg"}, {"title": "Sayonara Wild Hearts", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/sayonara-wild-hearts/", "year_played": "2026", "cover": "covers\\sayonara-wild-hearts.jpg"}, {"title": "CrossCode", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/crosscode/", "year_played": "2026", "cover": "covers\\crosscode.jpg"}, {"title": "Star Fox: Assault", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/star-fox-assault/", "year_played": "2026", "cover": "covers\\star-fox-assault.jpg"}, {"title": "LEGO Voyagers", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/lego-voyagers/", "year_played": "2026", "cover": "covers\\lego-voyagers.jpg"}, {"title": "Besiege", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/besiege/", "year_played": "2026", "cover": "covers\\besiege.jpg"}, {"title": "Blind Touch", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/blind-touch/", "year_played": "2026", "cover": "covers\\blind-touch.jpg"}, {"title": "TR-49", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/tr-49/", "year_played": "2026", "cover": "covers\\tr-49.jpg"}, {"title": "Ultimate Drummer", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/ultimate-drummer/", "year_played": "2026", "cover": "covers\\ultimate-drummer.jpg"}, {"title": "Burggeist", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/burggeist/", "year_played": "2026", "cover": "covers\\burggeist.jpg"}, {"title": "Indiana Jones and the Fate of Atlantis", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/indiana-jones-and-the-fate-of-atlantis--1/", "year_played": "2026", "cover": "covers\\indiana-jones-and-the-fate-of-atlantis.jpg"}], "2025": [{"title": "1000xResist", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/1000xresist/", "year_played": "2025", "cover": "covers\\1000xresist.jpg"}, {"title": "Blue Prince", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/blue-prince/", "year_played": "2025", "cover": "covers\\blue-prince.jpg"}, {"title": "UFO 50", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/ufo-50/", "year_played": "2025", "cover": "covers\\ufo-50.jpg"}, {"title": "Factorio", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/factorio/", "year_played": "2025", "cover": "covers\\factorio.jpg"}, {"title": "Arctic Eggs", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/arctic-eggs/", "year_played": "2025", "cover": "covers\\arctic-eggs.jpg"}, {"title": "The Drifter", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-drifter/", "year_played": "2025", "cover": "covers\\the-drifter.jpg"}, {"title": "Indika", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/indika/", "year_played": "2025", "cover": "covers\\indika.jpg"}, {"title": "The Roottrees Are Dead", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-roottrees-are-dead--1/", "year_played": "2025", "cover": "covers\\the-roottrees-are-dead.jpg"}, {"title": "Monster Hunter Wilds", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/monster-hunter-wilds/", "year_played": "2025", "cover": "covers\\monster-hunter-wilds.jpg"}, {"title": "Metaphor: ReFantazio", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/metaphor-refantazio/", "year_played": "2025", "cover": "covers\\metaphor-refantazio.jpg"}, {"title": "Haste", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/haste--2/", "year_played": "2025", "cover": "covers\\haste.jpg"}, {"title": "Hollow Knight: Silksong", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/hollow-knight-silksong/", "year_played": "2025", "cover": "covers\\hollow-knight-silksong.jpg"}, {"title": "The King is Watching", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-king-is-watching/", "year_played": "2025", "cover": "covers\\the-king-is-watching.jpg"}, {"title": "The Alters", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-alters/", "year_played": "2025", "cover": "covers\\the-alters.jpg"}, {"title": "Clair Obscur: Expedition 33", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/clair-obscur-expedition-33/", "year_played": "2025", "cover": "covers\\clair-obscur-expedition-33.jpg"}, {"title": "The Invincible", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/the-invincible/", "year_played": "2025", "cover": "covers\\the-invincible.jpg"}, {"title": "Minit", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/minit/", "year_played": "2025", "cover": "covers\\minit.jpg"}, {"title": "Viewfinder", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/viewfinder/", "year_played": "2025", "cover": "covers\\viewfinder.jpg"}, {"title": "Getting Over It with Bennett Foddy", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/getting-over-it-with-bennett-foddy/", "year_played": "2025", "cover": "covers\\getting-over-it-with-bennett-foddy.jpg"}, {"title": "Gone Home", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/gone-home/", "year_played": "2025", "cover": "covers\\gone-home.jpg"}, {"title": "Baby Steps", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/baby-steps/", "year_played": "2025", "cover": "covers\\baby-steps.jpg"}, {"title": "Into the Breach", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/into-the-breach/", "year_played": "2025", "cover": "covers\\into-the-breach.jpg"}, {"title": "Balatro", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/balatro/", "year_played": "2025", "cover": "covers\\balatro.jpg"}, {"title": "Kingdom Come: Deliverance II", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/kingdom-come-deliverance-ii/", "year_played": "2025", "cover": "covers\\kingdom-come-deliverance-ii.jpg"}, {"title": "Mouthwashing", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/mouthwashing/", "year_played": "2025", "cover": "covers\\mouthwashing.jpg"}, {"title": "Super Smash Bros. Ultimate", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/super-smash-bros-ultimate/", "year_played": "2025", "cover": "covers\\super-smash-bros-ultimate.jpg"}, {"title": "Dredge", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/dredge/", "year_played": "2025", "cover": "covers\\dredge.jpg"}, {"title": "The Crimson Diamond", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/the-crimson-diamond/", "year_played": "2025", "cover": "covers\\the-crimson-diamond.jpg"}, {"title": "Tacoma", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/tacoma/", "year_played": "2025", "cover": "covers\\tacoma.jpg"}, {"title": "Dead Letter Dept.", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/dead-letter-dept/", "year_played": "2025", "cover": "covers\\dead-letter-dept.jpg"}, {"title": "Cube Escape: Paradox", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/cube-escape-paradox/", "year_played": "2025", "cover": "covers\\cube-escape-paradox.jpg"}, {"title": "33 Immortals", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/33-immortals/", "year_played": "2025", "cover": "covers\\33-immortals.jpg"}, {"title": "A Space for the Unbound", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/a-space-for-the-unbound/", "year_played": "2025", "cover": "covers\\a-space-for-the-unbound.jpg"}, {"title": "Pentiment", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/pentiment/", "year_played": "2025", "cover": "covers\\pentiment.jpg"}]};
+const GAMES_BY_YEAR = {"2026": [{"title": "The Séance of Blake Manor", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-seance-of-blake-manor/", "year_played": "2026", "release_year": "2025", "cover": "covers\\the-s-ance-of-blake-manor.jpg", "categories": []}, {"title": "Donkey Kong Bananza", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/donkey-kong-bananza/", "year_played": "2026", "release_year": "2025", "cover": "covers\\donkey-kong-bananza.jpg", "categories": []}, {"title": "Mina the Hollower", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/mina-the-hollower/", "year_played": "2026", "release_year": "2026", "cover": "covers\\mina-the-hollower.jpg", "categories": []}, {"title": "Pokémon Pokopia", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/pokemon-pokopia/", "year_played": "2026", "release_year": "2026", "cover": "covers\\pok-mon-pokopia.jpg", "categories": []}, {"title": "Terra Nil", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/terra-nil--1/", "year_played": "2026", "release_year": "2023", "cover": "covers\\terra-nil.jpg", "categories": []}, {"title": "No Case Should Remain Unsolved", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/no-case-should-remain-unsolved/", "year_played": "2026", "release_year": "2024", "cover": "covers\\no-case-should-remain-unsolved.jpg", "categories": []}, {"title": "Pluto", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/pluto/", "year_played": "2026", "release_year": "2026", "cover": "covers\\pluto.jpg", "categories": []}, {"title": "Öoo", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/ooo--1/", "year_played": "2026", "release_year": "2025", "cover": "covers\\oo.jpg", "categories": []}, {"title": "The Ratline", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/the-ratline/", "year_played": "2026", "release_year": "2026", "cover": "covers\\the-ratline.jpg", "categories": []}, {"title": "Paranormasight: The Mermaid's Curse", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/paranormasight-the-mermaids-curse/", "year_played": "2026", "release_year": "2026", "cover": "covers\\paranormasight-the-mermaid-s-curse.jpg", "categories": []}, {"title": "Her Story", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/her-story/", "year_played": "2026", "release_year": "2015", "cover": "covers\\her-story.jpg", "categories": []}, {"title": "Prince of Persia: The Lost Crown", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/prince-of-persia-the-lost-crown/", "year_played": "2026", "release_year": "2024", "cover": "covers\\prince-of-persia-the-lost-crown.jpg", "categories": []}, {"title": "13 Sentinels: Aegis Rim", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/13-sentinels-aegis-rim/", "year_played": "2026", "release_year": "2019", "cover": "covers\\13-sentinels-aegis-rim.jpg", "categories": []}, {"title": "Lucifer Within Us", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/lucifer-within-us/", "year_played": "2026", "release_year": "2020", "cover": "covers\\lucifer-within-us.jpg", "categories": []}, {"title": "Tender Loving Care", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/tender-loving-care/", "year_played": "2026", "release_year": "1998", "cover": "covers\\tender-loving-care.jpg", "categories": []}, {"title": "Mewgenics", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/mewgenics/", "year_played": "2026", "release_year": "2026", "cover": "covers\\mewgenics.jpg", "categories": []}, {"title": "7 Days to End with You", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/7-days-to-end-with-you/", "year_played": "2026", "release_year": "2022", "cover": "covers\\7-days-to-end-with-you.jpg", "categories": []}, {"title": "Titanium Court", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/titanium-court/", "year_played": "2026", "release_year": "2026", "cover": "covers\\titanium-court.jpg", "categories": []}, {"title": "Easy Delivery Co.", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/easy-delivery-co/", "year_played": "2026", "release_year": "2025", "cover": "covers\\easy-delivery-co.jpg", "categories": []}, {"title": "Despelote", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/despelote/", "year_played": "2026", "release_year": "2025", "cover": "covers\\despelote.jpg", "categories": []}, {"title": "Pragmata", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/pragmata/", "year_played": "2026", "release_year": "2026", "cover": "covers\\pragmata.jpg", "categories": []}, {"title": "A Dance of Fire and Ice", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/a-dance-of-fire-and-ice/", "year_played": "2026", "release_year": "2014", "cover": "covers\\a-dance-of-fire-and-ice.jpg", "categories": []}, {"title": "Big Hops", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/big-hops/", "year_played": "2026", "release_year": "2026", "cover": "covers\\big-hops.jpg", "categories": []}, {"title": "Cairn", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/cairn--3/", "year_played": "2026", "release_year": "2026", "cover": "covers\\cairn.jpg", "categories": []}, {"title": "Botany Manor", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/botany-manor/", "year_played": "2026", "release_year": "2024", "cover": "covers\\botany-manor.jpg", "categories": []}, {"title": "Metal Garden", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/metal-garden/", "year_played": "2026", "release_year": "2025", "cover": "covers\\metal-garden.jpg", "categories": []}, {"title": "Strange Jigsaws", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/strange-jigsaws/", "year_played": "2026", "release_year": "2025", "cover": "covers\\strange-jigsaws.jpg", "categories": []}, {"title": "Slay the Princess", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/slay-the-princess/", "year_played": "2026", "release_year": "2023", "cover": "covers\\slay-the-princess.jpg", "categories": []}, {"title": "Detective Instinct: Farewell, My Beloved", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/detective-instinct-farewell-my-beloved/", "year_played": "2026", "release_year": "2025", "cover": "covers\\detective-instinct-farewell-my-beloved.jpg", "categories": []}, {"title": "ZeroRanger", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/zeroranger/", "year_played": "2026", "release_year": "2018", "cover": "covers\\zeroranger.jpg", "categories": []}, {"title": "Antichamber", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/antichamber/", "year_played": "2026", "release_year": "2013", "cover": "covers\\antichamber.jpg", "categories": []}, {"title": "Heroine's Quest: The Herald of Ragnarok", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/heroines-quest-the-herald-of-ragnarok/", "year_played": "2026", "release_year": "2014", "cover": "covers\\heroine-s-quest-the-herald-of-ragnarok.jpg", "categories": []}, {"title": "Lonely Mountains: Downhill", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/lonely-mountains-downhill/", "year_played": "2026", "release_year": "2019", "cover": "covers\\lonely-mountains-downhill.jpg", "categories": []}, {"title": "Sayonara Wild Hearts", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/sayonara-wild-hearts/", "year_played": "2026", "release_year": "2019", "cover": "covers\\sayonara-wild-hearts.jpg", "categories": []}, {"title": "CrossCode", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/crosscode/", "year_played": "2026", "release_year": "2018", "cover": "covers\\crosscode.jpg", "categories": []}, {"title": "Star Fox: Assault", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/star-fox-assault/", "year_played": "2026", "release_year": "2005", "cover": "covers\\star-fox-assault.jpg", "categories": []}, {"title": "LEGO Voyagers", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/lego-voyagers/", "year_played": "2026", "release_year": "2025", "cover": "covers\\lego-voyagers.jpg", "categories": []}, {"title": "Besiege", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/besiege/", "year_played": "2026", "release_year": "2020", "cover": "covers\\besiege.jpg", "categories": []}, {"title": "Blind Touch", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/blind-touch/", "year_played": "2026", "release_year": "2026", "cover": "covers\\blind-touch.jpg", "categories": []}, {"title": "TR-49", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/tr-49/", "year_played": "2026", "release_year": "2026", "cover": "covers\\tr-49.jpg", "categories": []}, {"title": "Ultimate Drummer", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/ultimate-drummer/", "year_played": "2026", "release_year": "2026", "cover": "covers\\ultimate-drummer.jpg", "categories": []}, {"title": "Burggeist", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/burggeist/", "year_played": "2026", "release_year": "2024", "cover": "covers\\burggeist.jpg", "categories": []}, {"title": "Indiana Jones and the Fate of Atlantis", "rating": "lame", "review": "", "url": "https://www.backloggd.com/games/indiana-jones-and-the-fate-of-atlantis--1/", "year_played": "2026", "release_year": "1992", "cover": "covers\\indiana-jones-and-the-fate-of-atlantis.jpg", "categories": []}], "2025": [{"title": "1000xResist", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/1000xresist/", "year_played": "2025", "release_year": "2024", "cover": "covers\\1000xresist.jpg", "categories": []}, {"title": "Blue Prince", "rating": "fantastic", "review": "", "url": "https://www.backloggd.com/games/blue-prince/", "year_played": "2025", "release_year": "2025", "cover": "covers\\blue-prince.jpg", "categories": []}, {"title": "UFO 50", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/ufo-50/", "year_played": "2025", "release_year": "2024", "cover": "covers\\ufo-50.jpg", "categories": []}, {"title": "Factorio", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/factorio/", "year_played": "2025", "release_year": "2020", "cover": "covers\\factorio.jpg", "categories": []}, {"title": "Arctic Eggs", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/arctic-eggs/", "year_played": "2025", "release_year": "2024", "cover": "covers\\arctic-eggs.jpg", "categories": []}, {"title": "The Drifter", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-drifter/", "year_played": "2025", "release_year": "2025", "cover": "covers\\the-drifter.jpg", "categories": []}, {"title": "Indika", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/indika/", "year_played": "2025", "release_year": "2024", "cover": "covers\\indika.jpg", "categories": []}, {"title": "The Roottrees Are Dead", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-roottrees-are-dead--1/", "year_played": "2025", "release_year": "2025", "cover": "covers\\the-roottrees-are-dead.jpg", "categories": []}, {"title": "Monster Hunter Wilds", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/monster-hunter-wilds/", "year_played": "2025", "release_year": "2025", "cover": "covers\\monster-hunter-wilds.jpg", "categories": []}, {"title": "Metaphor: ReFantazio", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/metaphor-refantazio/", "year_played": "2025", "release_year": "2024", "cover": "covers\\metaphor-refantazio.jpg", "categories": []}, {"title": "Haste", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/haste--2/", "year_played": "2025", "release_year": "2025", "cover": "covers\\haste.jpg", "categories": []}, {"title": "Hollow Knight: Silksong", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/hollow-knight-silksong/", "year_played": "2025", "release_year": "2025", "cover": "covers\\hollow-knight-silksong.jpg", "categories": []}, {"title": "The King is Watching", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-king-is-watching/", "year_played": "2025", "release_year": "2025", "cover": "covers\\the-king-is-watching.jpg", "categories": []}, {"title": "The Alters", "rating": "great", "review": "", "url": "https://www.backloggd.com/games/the-alters/", "year_played": "2025", "release_year": "2025", "cover": "covers\\the-alters.jpg", "categories": []}, {"title": "Clair Obscur: Expedition 33", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/clair-obscur-expedition-33/", "year_played": "2025", "release_year": "2025", "cover": "covers\\clair-obscur-expedition-33.jpg", "categories": []}, {"title": "The Invincible", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/the-invincible/", "year_played": "2025", "release_year": "2023", "cover": "covers\\the-invincible.jpg", "categories": []}, {"title": "Minit", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/minit/", "year_played": "2025", "release_year": "2018", "cover": "covers\\minit.jpg", "categories": []}, {"title": "Viewfinder", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/viewfinder/", "year_played": "2025", "release_year": "2023", "cover": "covers\\viewfinder.jpg", "categories": []}, {"title": "Getting Over It with Bennett Foddy", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/getting-over-it-with-bennett-foddy/", "year_played": "2025", "release_year": "2017", "cover": "covers\\getting-over-it-with-bennett-foddy.jpg", "categories": []}, {"title": "Gone Home", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/gone-home/", "year_played": "2025", "release_year": "2013", "cover": "covers\\gone-home.jpg", "categories": []}, {"title": "Baby Steps", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/baby-steps/", "year_played": "2025", "release_year": "2025", "cover": "covers\\baby-steps.jpg", "categories": []}, {"title": "Into the Breach", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/into-the-breach/", "year_played": "2025", "release_year": "2018", "cover": "covers\\into-the-breach.jpg", "categories": []}, {"title": "Balatro", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/balatro/", "year_played": "2025", "release_year": "2024", "cover": "covers\\balatro.jpg", "categories": []}, {"title": "Kingdom Come: Deliverance II", "rating": "good", "review": "", "url": "https://www.backloggd.com/games/kingdom-come-deliverance-ii/", "year_played": "2025", "release_year": "2025", "cover": "covers\\kingdom-come-deliverance-ii.jpg", "categories": []}, {"title": "Mouthwashing", "rating": "mixed", "review": "", "url": "https://www.backloggd.com/games/mouthwashing/", "year_played": "2025", "release_year": "2024", "cover": "covers\\mouthwashing.jpg", "categories": []}, {"title": "Super Smash Bros. Ultimate", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/super-smash-bros-ultimate/", "year_played": "2025", "release_year": "2018", "cover": "covers\\super-smash-bros-ultimate.jpg", "categories": []}, {"title": "Dredge", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/dredge/", "year_played": "2025", "release_year": "2023", "cover": "covers\\dredge.jpg", "categories": []}, {"title": "The Crimson Diamond", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/the-crimson-diamond/", "year_played": "2025", "release_year": "2024", "cover": "covers\\the-crimson-diamond.jpg", "categories": []}, {"title": "Tacoma", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/tacoma/", "year_played": "2025", "release_year": "2017", "cover": "covers\\tacoma.jpg", "categories": []}, {"title": "Dead Letter Dept.", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/dead-letter-dept/", "year_played": "2025", "release_year": "2025", "cover": "covers\\dead-letter-dept.jpg", "categories": []}, {"title": "Cube Escape: Paradox", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/cube-escape-paradox/", "year_played": "2025", "release_year": "2018", "cover": "covers\\cube-escape-paradox.jpg", "categories": []}, {"title": "33 Immortals", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/33-immortals/", "year_played": "2025", "release_year": "2026", "cover": "covers\\33-immortals.jpg", "categories": []}, {"title": "A Space for the Unbound", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/a-space-for-the-unbound/", "year_played": "2025", "release_year": "2023", "cover": "covers\\a-space-for-the-unbound.jpg", "categories": []}, {"title": "Pentiment", "rating": "okay", "review": "", "url": "https://www.backloggd.com/games/pentiment/", "year_played": "2025", "release_year": "2022", "cover": "covers\\pentiment.jpg", "categories": []}]};
+const GOTY_CATEGORIES = [{"key": "goty", "label": "Game of the Year"}, {"key": "puzzle_strategy", "label": "Puzzle/Strategy"}, {"key": "action", "label": "Action"}, {"key": "pickup_n_play", "label": "Pick Up 'n Play"}, {"key": "novelty", "label": "Novelty"}, {"key": "narrative", "label": "Narrative"}, {"key": "world", "label": "World"}, {"key": "visuals", "label": "Visuals"}, {"key": "audio", "label": "Audio"}];
 
 const RATING_COLORS = {
   fantastic: '#d4a017',
@@ -598,11 +754,13 @@ function initAllState() {
     (GAMES_BY_YEAR[yr] || []).forEach(g => {
       const r = ALL_RATINGS.includes(g.rating) ? g.rating : 'unrated';
       ALL_STATE[yr][r].push({
-        title:  g.title,
-        cover:  g.cover  || '',
-        review: g.review || '',
-        rating: r,
-        url:    g.url    || '',
+        title:        g.title,
+        cover:        g.cover  || '',
+        review:       g.review || '',
+        rating:       r,
+        url:          g.url    || '',
+        release_year: g.release_year || '',
+        categories:   Array.isArray(g.categories) ? g.categories.slice() : [],
       });
     });
   });
@@ -641,7 +799,7 @@ function markDirty() {
 
 // ── CSV export (all years) ────────────────────────────
 function saveCSV() {
-  const rows = [['title', 'rating', 'review', 'url', 'year_played']];
+  const rows = [['title', 'rating', 'review', 'url', 'year_played', 'release_year', 'goty_categories']];
   YEARS.forEach(yr => {
     const yrState = ALL_STATE[yr];
     ALL_RATINGS.forEach(r => {
@@ -651,7 +809,8 @@ function saveCSV() {
           return s.includes(',') || s.includes('"') || s.includes('\n')
             ? `"${s.replace(/"/g, '""')}"` : s;
         };
-        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr)]);
+        rows.push([esc(g.title), r, esc(g.review), esc(g.url), String(yr),
+                   esc(g.release_year), esc((g.categories || []).join(';'))]);
       });
     });
   });
@@ -903,16 +1062,14 @@ function setView(view) {
   currentView = view;
   document.getElementById('btn-list').classList.toggle('active', view === 'list');
   document.getElementById('btn-tier').classList.toggle('active', view === 'tier');
-  document.getElementById('filter-bar').style.display = view === 'tier' ? 'none' : '';
-  if (view === 'list') {
-    document.getElementById('game-list').style.display = '';
-    document.getElementById('tier-view').style.display = 'none';
-    renderList();
-  } else {
-    document.getElementById('game-list').style.display = 'none';
-    document.getElementById('tier-view').style.display = '';
-    renderTiers();
-  }
+  document.getElementById('btn-goty').classList.toggle('active', view === 'goty');
+  document.getElementById('filter-bar').style.display = view === 'list' ? '' : 'none';
+  document.getElementById('game-list').style.display = view === 'list' ? '' : 'none';
+  document.getElementById('tier-view').style.display = view === 'tier' ? '' : 'none';
+  document.getElementById('goty-view').style.display  = view === 'goty' ? '' : 'none';
+  if (view === 'list') renderList();
+  else if (view === 'tier') renderTiers();
+  else renderGoty();
 }
 
 function setFilter(filter, btn) {
@@ -952,6 +1109,260 @@ function renderTiers() {
   const total = ALL_RATINGS.reduce((n, r) => n + (state[r] || []).length, 0);
   document.getElementById('game-count').textContent =
     `${total} game${total !== 1 ? 's' : ''}`;
+}
+
+// ── GOTY view ─────────────────────────────────────────
+let gotyDragGame = null;
+
+document.addEventListener('dragover', e => { if (gotyDragGame) startAutoScroll(e.clientY); });
+document.addEventListener('dragend',  () => { if (gotyDragGame) cancelAutoScroll(); });
+
+function findGameByTitle(title) {
+  for (const r of ALL_RATINGS) {
+    const found = (state[r] || []).find(g => g.title === title);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findCategoryHolder(key) {
+  for (const r of ALL_RATINGS) {
+    const found = (state[r] || []).find(g => (g.categories || []).includes(key));
+    if (found) return found;
+  }
+  return null;
+}
+
+function assignCategory(key, title) {
+  const game = findGameByTitle(title);
+  if (!game) return;
+  const holder = findCategoryHolder(key);
+  if (holder && holder.title !== game.title) {
+    holder.categories = holder.categories.filter(c => c !== key);
+  }
+  if (!game.categories.includes(key)) game.categories.push(key);
+  markDirty();
+  renderGoty();
+}
+
+function moveCategory(key, fromCategory, title) {
+  if (key === fromCategory) return;
+  const game = findGameByTitle(title);
+  if (!game) return;
+  game.categories = game.categories.filter(c => c !== fromCategory);
+  const holder = findCategoryHolder(key);
+  if (holder && holder.title !== game.title) {
+    holder.categories = holder.categories.filter(c => c !== key);
+  }
+  if (!game.categories.includes(key)) game.categories.push(key);
+  markDirty();
+  renderGoty();
+}
+
+function removeCategory(key, title) {
+  const game = findGameByTitle(title);
+  if (!game) return;
+  game.categories = game.categories.filter(c => c !== key);
+  markDirty();
+  renderGoty();
+}
+
+function buildGotySlot(cat, large) {
+  const slot = document.createElement('div');
+  slot.className = 'goty-slot' + (large ? ' goty-slot-goty' : '');
+
+  const artWrap = document.createElement('div');
+  artWrap.className = 'goty-slot-art';
+
+  if (large) {
+    const crown = document.createElement('div');
+    crown.className = 'goty-crown';
+    crown.innerHTML = '<svg width="28" height="28" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/></svg>';
+    artWrap.appendChild(crown);
+  }
+
+  const holder = findCategoryHolder(cat.key);
+
+  const artBox = document.createElement('div');
+  artBox.className = 'goty-slot-cover-box';
+
+  if (holder) {
+    let wasDragged = false;
+    const img = holder.cover
+      ? (() => {
+          const i = document.createElement('img');
+          i.className = 'goty-slot-cover';
+          i.src = holder.cover;
+          i.alt = holder.title;
+          i.draggable = false;
+          i.onerror = function() {
+            this.outerHTML = `<div class="goty-slot-cover goty-slot-placeholder">${getInitial(holder.title)}</div>`;
+          };
+          return i;
+        })()
+      : (() => {
+          const d = document.createElement('div');
+          d.className = 'goty-slot-cover goty-slot-placeholder';
+          d.textContent = getInitial(holder.title);
+          return d;
+        })();
+    artBox.draggable = true;
+    artBox.appendChild(img);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'goty-remove-btn';
+    removeBtn.title = 'Remove from this award';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      removeCategory(cat.key, holder.title);
+    });
+    artBox.appendChild(removeBtn);
+
+    artBox.addEventListener('dragstart', e => {
+      wasDragged = true;
+      gotyDragGame = { title: holder.title, mode: 'slot', fromCategory: cat.key };
+      setTimeout(() => artBox.classList.add('dragging'), 0);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', holder.title);
+    });
+    artBox.addEventListener('dragend', () => {
+      artBox.classList.remove('dragging');
+      gotyDragGame = null;
+    });
+    artBox.addEventListener('click', () => {
+      if (wasDragged) { wasDragged = false; return; }
+      if (holder.url) window.open(holder.url, '_blank', 'noopener');
+    });
+  } else {
+    artBox.classList.add('goty-slot-empty');
+  }
+
+  artWrap.appendChild(artBox);
+  slot.appendChild(artWrap);
+
+  const label = document.createElement('div');
+  label.className = 'goty-slot-label';
+  label.textContent = cat.label;
+  slot.appendChild(label);
+
+  slot.addEventListener('dragover', e => {
+    if (!gotyDragGame) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    slot.classList.add('drag-over');
+  });
+  slot.addEventListener('dragleave', e => {
+    if (!slot.contains(e.relatedTarget)) slot.classList.remove('drag-over');
+  });
+  slot.addEventListener('drop', e => {
+    e.preventDefault();
+    slot.classList.remove('drag-over');
+    if (!gotyDragGame) return;
+    if (gotyDragGame.mode === 'candidate') assignCategory(cat.key, gotyDragGame.title);
+    else if (gotyDragGame.mode === 'slot') moveCategory(cat.key, gotyDragGame.fromCategory, gotyDragGame.title);
+    gotyDragGame = null;
+  });
+
+  return slot;
+}
+
+function buildGotyCandidate(game) {
+  const item = document.createElement('div');
+  item.className = 'tier-cover-item';
+  item.draggable = true;
+
+  const tooltip = document.createElement('span');
+  tooltip.className   = 'cover-tooltip';
+  tooltip.textContent = game.title;
+
+  const coverEl = game.cover
+    ? (() => {
+        const i = document.createElement('img');
+        i.src = game.cover;
+        i.alt = game.title;
+        i.draggable = false;
+        i.onerror = function() {
+          this.outerHTML = `<div class="tier-cover-placeholder">${getInitial(game.title)}</div>`;
+        };
+        return i;
+      })()
+    : (() => {
+        const d = document.createElement('div');
+        d.className   = 'tier-cover-placeholder';
+        d.textContent = getInitial(game.title);
+        return d;
+      })();
+
+  item.appendChild(tooltip);
+  item.appendChild(coverEl);
+
+  let wasDragged = false;
+  item.addEventListener('dragstart', e => {
+    wasDragged = true;
+    gotyDragGame = { title: game.title, mode: 'candidate' };
+    setTimeout(() => item.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', game.title);
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    cancelAutoScroll();
+    gotyDragGame = null;
+  });
+  item.addEventListener('click', () => {
+    if (wasDragged) { wasDragged = false; return; }
+    if (game.url) window.open(game.url, '_blank', 'noopener');
+  });
+
+  return item;
+}
+
+function renderGoty() {
+  const container = document.getElementById('goty-view');
+  container.innerHTML = '';
+
+  const slotsWrap = document.createElement('div');
+  slotsWrap.className = 'goty-slots';
+
+  const gotyCat = GOTY_CATEGORIES[0];
+  const gotyRow = document.createElement('div');
+  gotyRow.className = 'goty-row-main';
+  gotyRow.appendChild(buildGotySlot(gotyCat, true));
+  slotsWrap.appendChild(gotyRow);
+
+  const grid = document.createElement('div');
+  grid.className = 'goty-grid';
+  GOTY_CATEGORIES.slice(1).forEach(cat => grid.appendChild(buildGotySlot(cat, false)));
+  slotsWrap.appendChild(grid);
+
+  container.appendChild(slotsWrap);
+
+  const heading = document.createElement('div');
+  heading.className = 'goty-candidates-heading';
+  heading.textContent = 'Candidates';
+  container.appendChild(heading);
+
+  const candidatesWrap = document.createElement('div');
+  candidatesWrap.className = 'goty-candidates tier-covers';
+
+  const candidates = ALL_RATINGS.flatMap(r =>
+    (state[r] || []).filter(g => parseInt(g.release_year, 10) === currentYear));
+
+  if (candidates.length === 0) {
+    const empty = document.createElement('span');
+    empty.className   = 'tier-empty';
+    empty.textContent = 'No games released in ' + currentYear + ' on this list.';
+    candidatesWrap.appendChild(empty);
+  } else {
+    candidates.forEach(game => candidatesWrap.appendChild(buildGotyCandidate(game)));
+  }
+
+  container.appendChild(candidatesWrap);
+
+  document.getElementById('game-count').textContent =
+    `${candidates.length} candidate${candidates.length !== 1 ? 's' : ''}`;
 }
 
 (function init() {
