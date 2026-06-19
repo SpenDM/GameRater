@@ -2,7 +2,7 @@
 """
 Game Ratings HTML Generator
 Usage: python3 create_game_log_html.py [input.csv] [output.html]
-Defaults: games.csv -> index.html
+Defaults: games.csv -> gamelog.html
 
 Requires:
   pip install playwright playwright-stealth
@@ -692,7 +692,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     .game-count {{
       margin: 0;
-      text-align: center;
+      text-align: left;
       font-size: 0.8rem;
       color: var(--text-muted);
     }}
@@ -700,7 +700,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     .view-toggle-col {{
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.35rem;
       flex-shrink: 0;
     }}
@@ -767,6 +767,47 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       font-weight: 800;
       color: var(--text-muted);
     }}
+
+    /* ── Hover dim + title overlay (shared across List/Tier/GOTY covers) ── */
+    .cover-hover {{ position: relative; }}
+
+    .cover-hover img,
+    .cover-hover .cover-placeholder,
+    .cover-hover .tier-cover-placeholder,
+    .cover-hover .goty-slot-cover,
+    .cover-hover .goty-slot-placeholder {{
+      transition: filter 0.15s ease;
+    }}
+
+    .cover-hover:hover img,
+    .cover-hover:hover .cover-placeholder,
+    .cover-hover:hover .tier-cover-placeholder,
+    .cover-hover:hover .goty-slot-cover,
+    .cover-hover:hover .goty-slot-placeholder {{
+      filter: brightness(0.35);
+    }}
+
+    .cover-hover-title {{
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0.3rem;
+      color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.7rem;
+      line-height: 1.15;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 5;
+    }}
+
+    .cover-hover:hover .cover-hover-title {{ display: flex; }}
+
+    .goty-slot-goty .cover-hover-title {{ font-size: 0.95rem; }}
 
     /* ── Body ── */
     .game-body {{
@@ -926,29 +967,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       border: 1px solid var(--border);
     }}
 
-    .tier-cover-item .cover-tooltip {{
-      display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: #0f0f13;
-      color: var(--text);
-      font-size: 0.72rem;
-      font-weight: 600;
-      padding: 0.3rem 0.6rem;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      white-space: nowrap;
-      z-index: 10;
-      pointer-events: none;
-      max-width: 160px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }}
-
-    .tier-cover-item:hover .cover-tooltip {{ display: block; }}
-
     .tier-empty {{
       padding: 1rem;
       color: var(--text-muted);
@@ -1076,6 +1094,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
     }}
 
     .goty-remove-btn {{
+      display: none;
       position: absolute;
       top: -8px;
       right: -8px;
@@ -1088,10 +1107,12 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       font-size: 0.95rem;
       line-height: 1;
       cursor: pointer;
-      display: flex;
       align-items: center;
       justify-content: center;
+      z-index: 6;
     }}
+
+    .goty-slot-cover-box:hover .goty-remove-btn {{ display: flex; }}
 
     .goty-remove-btn:hover {{ background: var(--surface2); color: var(--accent); }}
 
@@ -1395,7 +1416,7 @@ function buildRow(game) {{
   row.style.setProperty('--row-accent', color);
   if (game.url) row.addEventListener('click', () => window.open(game.url, '_blank', 'noopener'));
   row.innerHTML = `
-    <div class="game-cover-wrap">${{coverHtml}}</div>
+    <div class="game-cover-wrap cover-hover">${{coverHtml}}<span class="cover-hover-title">${{escapeHtml(game.title)}}</span></div>
     <div class="game-body">
       <div class="game-title">${{escapeHtml(game.title)}}</div>
       ${{reviewHtml}}
@@ -1410,13 +1431,13 @@ function buildRow(game) {{
 // ── Tier view ─────────────────────────────────────────
 function makeCoverItem(game, rating) {{
   const item = document.createElement('div');
-  item.className = 'tier-cover-item';
+  item.className = 'tier-cover-item cover-hover';
   item.draggable = true;
   item.dataset.title  = game.title;
   item.dataset.rating = rating;
 
   const tooltip = document.createElement('span');
-  tooltip.className   = 'cover-tooltip';
+  tooltip.className   = 'cover-hover-title';
   tooltip.textContent = game.title;
 
   const coverEl = game.cover
@@ -1686,6 +1707,7 @@ function buildGotySlot(cat, large) {{
   artBox.className = 'goty-slot-cover-box';
 
   if (holder) {{
+    artBox.classList.add('cover-hover');
     let wasDragged = false;
     const img = holder.cover
       ? (() => {{
@@ -1707,6 +1729,11 @@ function buildGotySlot(cat, large) {{
         }})();
     artBox.draggable = true;
     artBox.appendChild(img);
+
+    const hoverTitle = document.createElement('span');
+    hoverTitle.className   = 'cover-hover-title';
+    hoverTitle.textContent = holder.title;
+    artBox.appendChild(hoverTitle);
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'goty-remove-btn';
@@ -1768,11 +1795,11 @@ function buildGotySlot(cat, large) {{
 
 function buildGotyCandidate(game) {{
   const item = document.createElement('div');
-  item.className = 'tier-cover-item';
+  item.className = 'tier-cover-item cover-hover';
   item.draggable = true;
 
   const tooltip = document.createElement('span');
-  tooltip.className   = 'cover-tooltip';
+  tooltip.className   = 'cover-hover-title';
   tooltip.textContent = game.title;
 
   const coverEl = game.cover
@@ -1880,7 +1907,7 @@ function renderGoty() {{
 
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
-    out_path = sys.argv[2] if len(sys.argv) > 2 else 'index.html'
+    out_path = sys.argv[2] if len(sys.argv) > 2 else 'gamelog.html'
 
     if not os.path.exists(csv_path):
         write_csv(csv_path, [])
