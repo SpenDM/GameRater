@@ -10,7 +10,7 @@ additional GOTY-only year tabs going back to the earliest release year
 on record. Years 1999 and earlier show only the Game of the Year award
 (no other award categories).
 
-Requires the same dependencies as create_game_log_html.py:
+Requires the same dependencies as create_game_log_all_played_lists.py:
   pip install playwright playwright-stealth
   python3 -m playwright install chromium
 """
@@ -19,7 +19,7 @@ import sys
 import os
 import asyncio
 
-from create_game_log_html import (
+from create_game_log_all_played_lists import (
     read_csv,
     write_csv,
     fetch_backloggd_list,

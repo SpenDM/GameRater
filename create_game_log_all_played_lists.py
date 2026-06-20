@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Game Ratings HTML Generator
-Usage: python3 create_game_log_html.py [input.csv] [output.html]
+Usage: python3 create_game_log_all_played_lists.py [input.csv] [output.html]
 Defaults: games.csv -> gamelog.html
 
 Requires:
