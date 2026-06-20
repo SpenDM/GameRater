@@ -302,9 +302,10 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
                                 found_on_page.setdefault(val, {'cover_url': None, 'page_url': None})
 
                 if not found_on_page:
-                    print(f"    ⚠  Page {page_num}: no games found.")
-                    html = await page.content()
-                    print(f"    --- Page HTML (first 3000 chars) ---\n{html[:3000]}\n    ---")
+                    print(f"    ⚠  Page {page_num}: no games found — stopping.")
+                    if page_num == 1:
+                        html = await page.content()
+                        print(f"    --- Page HTML (first 3000 chars) ---\n{html[:3000]}\n    ---")
                     await page.close()
                     break
 
@@ -317,12 +318,15 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
                         'page_url': data['page_url'],
                     })
                 print(f"    Page {page_num}: found {len(found_on_page)} games ({len(new)} new)")
-
-                next_btn = await page.query_selector(
-                    'a[rel="next"], .pagination .next:not(.disabled), a.page-link[aria-label="Next"]'
-                )
                 await page.close()
-                if not next_btn:
+
+                if not new:
+                    # Every title on this page was already seen — either we've run
+                    # past the last page (site re-serves the final page) or hit a
+                    # genuine duplicate-only page. Either way, stop.
+                    break
+                if page_num > 100:
+                    print("    ⚠  Hit 100-page safety cap — stopping.")
                     break
                 page_num += 1
 
@@ -459,12 +463,50 @@ def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int
     return games, added
 
 
+# ── Year tab computation ──────────────────────────────────────────────────────
+
+HISTORIC_START_YEAR = 2024
+AWARD_ONLY_CUTOFF_YEAR = 1999
+
+
+def compute_year_tabs(games: list[dict], played_years: list[int],
+                       historic_start_year: int = HISTORIC_START_YEAR,
+                       award_only_cutoff_year: int = AWARD_ONLY_CUTOFF_YEAR
+                       ) -> tuple[list[int], dict[int, str]]:
+    """Combine played_years ('full' mode) with historic GOTY-only tabs derived
+    from games' release_year (historic_start_year down to the earliest release
+    year present). Years <= award_only_cutoff_year get 'goty-award' mode
+    (GOTY slot only); the rest get 'goty' (full award grid, no tier/list).
+    Returns (years_sorted_desc, year_modes).
+    """
+    played_years = list(played_years)
+    release_years_present = [
+        int(g['release_year']) for g in games if g.get('release_year', '').strip().isdigit()
+    ]
+    if release_years_present:
+        earliest_release_year = min(release_years_present)
+        historic_years = [
+            yr for yr in range(historic_start_year, earliest_release_year - 1, -1)
+            if yr not in played_years
+        ]
+    else:
+        historic_years = []
+
+    year_modes = {yr: 'full' for yr in played_years}
+    for yr in historic_years:
+        year_modes[yr] = 'goty-award' if yr <= award_only_cutoff_year else 'goty'
+
+    years = sorted(set(played_years) | set(historic_years), reverse=True)
+    return years, year_modes
+
+
 # ── HTML generation ───────────────────────────────────────────────────────────
 
 def generate_html(games: list[dict], covers: dict[str, str | None],
                   title: str = "Game Log",
                   page_urls: dict[str, str] | None = None,
-                  years: list[int] | None = None) -> str:
+                  years: list[int] | None = None,
+                  year_modes: dict[int, str] | None = None) -> str:
 
     page_urls = page_urls or {}
 
@@ -491,18 +533,24 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
                 year_set.add(int(yr))
         years_sorted = sorted(year_set, reverse=True)
 
-    # Group by year
+    # Group by year (fall back to release_year for games with no year_played,
+    # e.g. ones merged in from the full library scrape) so they're still
+    # discoverable as GOTY candidates for their release year.
     games_by_year: dict[int, list] = {yr: [] for yr in years_sorted}
     for g in games_with_meta:
         yr_str = g.get('year_played', '').strip()
         if yr_str.isdigit():
             yr = int(yr_str)
-            if yr in games_by_year:
-                games_by_year[yr].append(g)
+        else:
+            ry_str = g.get('release_year', '').strip()
+            yr = int(ry_str) if ry_str.isdigit() else None
+        if yr is not None and yr in games_by_year:
+            games_by_year[yr].append(g)
 
     games_by_year_json = json.dumps(games_by_year, ensure_ascii=False)
     years_json = json.dumps(years_sorted)
     goty_categories_json = json.dumps(GOTY_CATEGORIES, ensure_ascii=False)
+    year_modes_json = json.dumps(year_modes or {}, ensure_ascii=False)
 
     rating_css_vars = '\n'.join(
         f'    --color-{r}: {c};' for r, c in RATING_COLORS.items()
@@ -573,9 +621,16 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       margin: 0 auto;
       padding: 0 2rem;
       display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+    }}
+
+    .year-tabs-row {{
+      display: flex;
       gap: 0;
       align-items: flex-end;
-      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }}
 
     .year-tab {{
@@ -1246,6 +1301,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 const YEARS = {years_json};
 const GAMES_BY_YEAR = {games_by_year_json};
 const GOTY_CATEGORIES = {goty_categories_json};
+const YEAR_MODES = {year_modes_json};
 
 const RATING_COLORS = {{
   fantastic: '#d4a017',
@@ -1297,17 +1353,33 @@ function initAllState() {{
 }}
 
 // ── Year tabs ─────────────────────────────────────────
+const YEAR_TABS_PER_ROW = 12;
+
 function buildYearTabs() {{
   const container = document.getElementById('year-tabs');
   container.innerHTML = '';
-  YEARS.forEach(yr => {{
+  let row = null;
+  YEARS.forEach((yr, i) => {{
+    if (i % YEAR_TABS_PER_ROW === 0) {{
+      row = document.createElement('div');
+      row.className = 'year-tabs-row';
+      container.appendChild(row);
+    }}
     const btn = document.createElement('button');
     btn.className = 'year-tab' + (yr === currentYear ? ' active' : '');
     btn.textContent = String(yr);
     btn.dataset.year = yr;
     btn.addEventListener('click', () => setYear(yr));
-    container.appendChild(btn);
+    row.appendChild(btn);
   }});
+}}
+
+function yearMode(yr) {{ return YEAR_MODES[yr] || 'full'; }}
+
+function applyViewAvailability() {{
+  const restricted = yearMode(currentYear) !== 'full';
+  document.getElementById('btn-tier').style.display = restricted ? 'none' : '';
+  document.getElementById('btn-list').style.display = restricted ? 'none' : '';
 }}
 
 function setYear(yr) {{
@@ -1315,9 +1387,8 @@ function setYear(yr) {{
   state = ALL_STATE[yr];
   document.querySelectorAll('.year-tab').forEach(b =>
     b.classList.toggle('active', parseInt(b.dataset.year) === yr));
-  if (currentView === 'tier') renderTiers();
-  else if (currentView === 'goty') renderGoty();
-  else renderList();
+  applyViewAvailability();
+  setView(yearMode(yr) !== 'full' ? 'goty' : currentView);
 }}
 
 // ── Dirty tracking ────────────────────────────────────
@@ -1858,10 +1929,12 @@ function renderGoty() {{
   gotyRow.appendChild(buildGotySlot(gotyCat, true));
   slotsWrap.appendChild(gotyRow);
 
-  const grid = document.createElement('div');
-  grid.className = 'goty-grid';
-  GOTY_CATEGORIES.slice(1).forEach(cat => grid.appendChild(buildGotySlot(cat, false)));
-  slotsWrap.appendChild(grid);
+  if (yearMode(currentYear) !== 'goty-award') {{
+    const grid = document.createElement('div');
+    grid.className = 'goty-grid';
+    GOTY_CATEGORIES.slice(1).forEach(cat => grid.appendChild(buildGotySlot(cat, false)));
+    slotsWrap.appendChild(grid);
+  }}
 
   container.appendChild(slotsWrap);
 
@@ -1895,7 +1968,8 @@ function renderGoty() {{
 (function init() {{
   initAllState();
   buildYearTabs();
-  setView('tier');
+  applyViewAvailability();
+  setView(yearMode(currentYear) !== 'full' ? 'goty' : 'tier');
 }})();
 </script>
 </body>
@@ -1955,7 +2029,7 @@ def main():
     else:
         print("  ⚠  No year lists found — generating HTML from existing data only.")
 
-    years = [yr for yr, _ in year_lists] if year_lists else []
+    played_years = [yr for yr, _ in year_lists] if year_lists else []
 
     print(f"\nFetching release years...")
     release_years = asyncio.run(fetch_release_years(games))
@@ -1969,8 +2043,10 @@ def main():
     print(f"\nFetching cover art...")
     covers = asyncio.run(fetch_all_covers(games, all_cover_urls))
 
+    years, year_modes = compute_year_tabs(games, played_years)
+
     print(f"\nGenerating {out_path}...")
-    html = generate_html(games, covers, page_urls=all_page_urls, years=years)
+    html = generate_html(games, covers, page_urls=all_page_urls, years=years, year_modes=year_modes)
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
