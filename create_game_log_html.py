@@ -473,11 +473,13 @@ def compute_year_tabs(games: list[dict], played_years: list[int],
                        historic_start_year: int = HISTORIC_START_YEAR,
                        award_only_cutoff_year: int = AWARD_ONLY_CUTOFF_YEAR
                        ) -> tuple[list[int], dict[int, str]]:
-    """Combine played_years ('full' mode) with historic GOTY-only tabs derived
-    from games' release_year (historic_start_year down to the earliest release
-    year present). Years <= award_only_cutoff_year get 'goty-award' mode
-    (GOTY slot only); the rest get 'goty' (full award grid, no tier/list).
-    Returns (years_sorted_desc, year_modes).
+    """Combine played_years with historic GOTY-only tabs derived from games'
+    release_year (historic_start_year down to the earliest release year
+    present). Mode is based purely on year, regardless of whether it was
+    played: years after historic_start_year get 'full' (tier/list/goty);
+    years <= historic_start_year get 'goty' (full award grid, no tier/list)
+    down to award_only_cutoff_year, below which they get 'goty-award'
+    (GOTY slot only). Returns (years_sorted_desc, year_modes).
     """
     played_years = list(played_years)
     release_years_present = [
@@ -492,11 +494,15 @@ def compute_year_tabs(games: list[dict], played_years: list[int],
     else:
         historic_years = []
 
-    year_modes = {yr: 'full' for yr in played_years}
-    for yr in historic_years:
-        year_modes[yr] = 'goty-award' if yr <= award_only_cutoff_year else 'goty'
-
     years = sorted(set(played_years) | set(historic_years), reverse=True)
+    year_modes = {}
+    for yr in years:
+        if yr > historic_start_year:
+            year_modes[yr] = 'full'
+        elif yr <= award_only_cutoff_year:
+            year_modes[yr] = 'goty-award'
+        else:
+            year_modes[yr] = 'goty'
     return years, year_modes
 
 
