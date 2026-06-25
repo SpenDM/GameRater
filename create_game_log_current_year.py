@@ -26,49 +26,53 @@ from create_game_log_all_played_lists import (
     fetch_year_lists,
     fetch_backloggd_list,
     merge_list_into_games,
-    fetch_release_years,
-    fetch_all_covers,
-    generate_html,
-    compute_year_tabs,
+    fetch_release_years_and_update,
+    fetch_covers_and_render,
 )
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
-def main():
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
-    out_path = sys.argv[2] if len(sys.argv) > 2 else 'gamelog.html'
+def run_current_year(csv_path: str, out_path: str, folder_url: str = BACKLOGGD_FOLDER_URL,
+                      covers_dir: str = "covers", progress_cb=None) -> dict:
+    def log(msg: str) -> None:
+        print(msg)
+        if progress_cb:
+            progress_cb(msg)
 
     if not os.path.exists(csv_path):
         write_csv(csv_path, [])
-        print(f"Created empty {csv_path}")
+        log(f"Created empty {csv_path}")
 
-    print(f"Reading {csv_path}...")
+    log(f"Reading {csv_path}...")
     games = read_csv(csv_path)
-    print(f"  Found {len(games)} game(s).")
+    log(f"  Found {len(games)} game(s).")
 
-    print(f"\nDiscovering year lists from Backloggd folder...")
-    year_lists = asyncio.run(fetch_year_lists(BACKLOGGD_FOLDER_URL))
+    log("\nDiscovering year lists from Backloggd folder...")
+    year_lists = asyncio.run(fetch_year_lists(folder_url))
     year_lists = year_lists[:1]
     if year_lists:
-        print(f"  Using most recent year list: {year_lists[0][0]}")
+        log(f"  Using most recent year list: {year_lists[0][0]}")
 
     all_cover_urls: dict[str, str] = {}
     all_page_urls:  dict[str, str] = {}
+    added_total = 0
+    csv_changed = False
+    current_year = None
 
     if year_lists:
-        year, list_url = year_lists[0]
-        csv_changed = False
+        current_year, list_url = year_lists[0]
 
-        print(f"\nFetching games for {year}...")
+        log(f"\nFetching games for {current_year}...")
         entries = asyncio.run(fetch_backloggd_list(list_url))
         if not entries:
-            print(f"  Could not fetch list for {year}.")
+            log(f"  Could not fetch list for {current_year}.")
         else:
-            games, added = merge_list_into_games(games, entries, year=year)
+            games, added = merge_list_into_games(games, entries, year=current_year)
             if added:
-                print(f"  Added {added} new game(s) for {year}.")
+                log(f"  Added {added} new game(s) for {current_year}.")
+                added_total += added
                 csv_changed = True
             all_cover_urls.update({e['title']: e['cover_url'] for e in entries if e.get('cover_url')})
             all_page_urls.update( {e['title']: e['page_url']  for e in entries if e.get('page_url')})
@@ -81,25 +85,15 @@ def main():
 
         if csv_changed:
             write_csv(csv_path, games)
-            print(f"\nCSV updated → {csv_path}")
+            log(f"\nCSV updated → {csv_path}")
         else:
-            print(f"\nNo CSV changes.")
+            log("\nNo CSV changes.")
 
-        print(f"  Page URLs captured: {len(all_page_urls)}")
+        log(f"  Page URLs captured: {len(all_page_urls)}")
     else:
-        print("  ⚠  No year lists found — generating HTML from existing data only.")
+        log("  ⚠  No year lists found — generating HTML from existing data only.")
 
-    print(f"\nFetching release years...")
-    release_years = asyncio.run(fetch_release_years(games))
-    if release_years:
-        for game in games:
-            if game['title'] in release_years:
-                game['release_year'] = release_years[game['title']]
-        write_csv(csv_path, games)
-        print(f"  CSV updated with release years → {csv_path}")
-
-    print(f"\nFetching cover art...")
-    covers = asyncio.run(fetch_all_covers(games, all_cover_urls))
+    fetch_release_years_and_update(games, csv_path, log)
 
     # Derive played_years from the CSV's existing year_played values so that
     # years not touched by this run (only the latest year is scraped) still
@@ -109,20 +103,23 @@ def main():
         reverse=True,
     )
 
-    years, year_modes = compute_year_tabs(games, played_years)
+    result = fetch_covers_and_render(games, all_cover_urls, all_page_urls, played_years,
+                                      out_path, covers_dir, log)
 
-    print(f"\nGenerating {out_path}...")
-    html = generate_html(games, covers, page_urls=all_page_urls, years=years, year_modes=year_modes)
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(html)
+    log("")
+    log("Tips:")
+    log("  • Re-run any time to sync the current year's games from Backloggd and refresh the page.")
+    log("  • Edit games.csv to add ratings and reviews for unrated games.")
+    log("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
+    log("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
 
-    print(f"Done → {out_path}")
-    print()
-    print("Tips:")
-    print("  • Re-run any time to sync the current year's games from Backloggd and refresh the page.")
-    print("  • Edit games.csv to add ratings and reviews for unrated games.")
-    print("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
-    print("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
+    return {'added': added_total, 'csv_changed': csv_changed, 'year': current_year, **result}
+
+
+def main():
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
+    out_path = sys.argv[2] if len(sys.argv) > 2 else 'gamelog.html'
+    run_current_year(csv_path, out_path, BACKLOGGD_FOLDER_URL)
 
 
 if __name__ == '__main__':

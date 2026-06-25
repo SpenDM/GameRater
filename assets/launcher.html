@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GameRater</title>
+  <link rel="icon" type="image/png" href="GameRaterLogo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:          #0f0f13;
+      --surface:     #18181f;
+      --surface2:    #1f1f2a;
+      --border:      #2a2a38;
+      --text:        #e8e8f0;
+      --text-dim:    #7a7a99;
+      --text-muted:  #4a4a66;
+      --accent:      #a78bfa;
+      --good:        #2563eb;
+      --bad:         #c2620a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 2.5rem 2rem 1rem;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    main {
+      max-width: 760px;
+      margin: 0 auto 4rem;
+      padding: 0 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 1.75rem;
+    }
+
+    section h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .field { margin-bottom: 1rem; }
+    .field:last-of-type { margin-bottom: 0; }
+
+    input[type="url"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+    }
+
+    input[type="url"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.55rem 1.1rem;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f0f13;
+    }
+
+    .btn-primary:hover { color: #0f0f13; background: #bfa0ff; border-color: #bfa0ff; }
+
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .save-msg {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    .add-games-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .add-games-row .btn { flex: 1; min-width: 150px; }
+
+    #running-indicator {
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 1.25rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    #running-indicator.visible { display: flex; }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      border-top-color: var(--accent);
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #status-box {
+      margin-top: 0.6rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      display: none;
+    }
+
+    #status-box.visible { display: block; }
+
+    .banner {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: none;
+    }
+
+    .banner.visible { display: block; }
+
+    .banner.success {
+      background: color-mix(in srgb, var(--good) 15%, transparent);
+      color: #93b6f8;
+      border: 1px solid color-mix(in srgb, var(--good) 35%, transparent);
+    }
+
+    .banner.error {
+      background: color-mix(in srgb, var(--bad) 15%, transparent);
+      color: #f0b380;
+      border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+    }
+
+    .open-rater-wrap {
+      display: flex;
+      justify-content: center;
+    }
+
+    #open-rater-btn {
+      font-size: 1rem;
+      padding: 0.85rem 2.5rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Game<span>Rater</span></h1>
+</header>
+
+<main>
+  <section id="urls-section">
+    <h2>Backloggd URLs</h2>
+    <div class="field">
+      <label for="folder-url">Games Played Folder URL</label>
+      <input type="url" id="folder-url" placeholder="https://backloggd.com/u/<you>/lists/folder/games-played-by-year/" />
+    </div>
+    <div class="field">
+      <label for="master-url">Full Game List URL</label>
+      <input type="url" id="master-url" placeholder="https://backloggd.com/u/<you>/games/" />
+    </div>
+    <div class="row-actions">
+      <button class="btn" id="save-urls-btn">Save URLs</button>
+      <span class="save-msg" id="save-urls-msg"></span>
+    </div>
+  </section>
+
+  <section id="add-games-section">
+    <h2>Add Games</h2>
+    <div class="add-games-row">
+      <button class="btn" id="btn-current-year" data-op="current_year" disabled>Current Year</button>
+      <button class="btn" id="btn-all-lists" data-op="all_played_lists" disabled>All Year Lists</button>
+      <button class="btn" id="btn-historic" data-op="historic" disabled>All Games Played</button>
+    </div>
+    <div id="running-indicator">
+      <span class="spinner"></span>
+      <span id="running-op-label"></span>
+    </div>
+    <div id="status-box"></div>
+    <div class="banner" id="result-banner"></div>
+  </section>
+
+  <div class="open-rater-wrap">
+    <button class="btn btn-primary" id="open-rater-btn" disabled>Open Rater Page</button>
+  </div>
+</main>
+
+<script>
+const api = () => window.pywebview && window.pywebview.api;
+
+const opButtons = {
+  current_year:     document.getElementById('btn-current-year'),
+  all_played_lists: document.getElementById('btn-all-lists'),
+  historic:         document.getElementById('btn-historic'),
+};
+const startMethod = {
+  current_year:     'start_current_year',
+  all_played_lists: 'start_all_played_lists',
+  historic:         'start_historic',
+};
+const opLabels = {
+  current_year:     'Current Year',
+  all_played_lists: 'All Year Lists',
+  historic:         'All Games Played',
+};
+
+const statusBox        = document.getElementById('status-box');
+const resultBanner     = document.getElementById('result-banner');
+const openRaterBtn     = document.getElementById('open-rater-btn');
+const runningIndicator = document.getElementById('running-indicator');
+const runningOpLabel   = document.getElementById('running-op-label');
+
+let pollHandle = null;
+
+function setButtonsEnabled(enabled) {
+  Object.values(opButtons).forEach(btn => btn.disabled = !enabled);
+}
+
+function renderLog(lines) {
+  statusBox.textContent = lines.join('\n');
+  statusBox.classList.add('visible');
+  statusBox.scrollTop = statusBox.scrollHeight;
+}
+
+function showBanner(kind, text) {
+  resultBanner.textContent = text;
+  resultBanner.className = `banner visible ${kind}`;
+}
+
+function showRunning(op) {
+  runningOpLabel.textContent = `Running: ${opLabels[op]}…`;
+  runningIndicator.classList.add('visible');
+}
+
+function hideRunning() {
+  runningIndicator.classList.remove('visible');
+}
+
+async function refreshOpenRaterButton() {
+  const has = await api().has_rater_page();
+  openRaterBtn.disabled = !has;
+  openRaterBtn.title = has ? '' : 'Add some games first';
+}
+
+async function pollStatus() {
+  let status;
+  try {
+    status = await api().get_status();
+  } catch (e) {
+    clearInterval(pollHandle);
+    pollHandle = null;
+    hideRunning();
+    setButtonsEnabled(true);
+    showBanner('error', `Lost connection to the app: ${e}`);
+    return;
+  }
+  renderLog(status.log);
+  if (status.done) {
+    clearInterval(pollHandle);
+    pollHandle = null;
+    hideRunning();
+    setButtonsEnabled(true);
+    if (status.error) {
+      showBanner('error', `Error: ${status.error}`);
+    } else if (status.result) {
+      const r = status.result;
+      const added = r.added || 0;
+      showBanner('success',
+        `✓ Done — ${added} new game${added === 1 ? '' : 's'} added` +
+        (r.covers_found != null ? `, ${r.covers_found} cover(s) ready` : '') + '.');
+    } else {
+      showBanner('success', '✓ Done.');
+    }
+    await refreshOpenRaterButton();
+  }
+}
+
+async function startOp(op) {
+  resultBanner.className = 'banner';
+  statusBox.classList.remove('visible');
+  statusBox.textContent = '';
+  setButtonsEnabled(false);
+  showRunning(op);
+  let result;
+  try {
+    result = await api()[startMethod[op]]();
+  } catch (e) {
+    hideRunning();
+    setButtonsEnabled(true);
+    showBanner('error', `Could not start: ${e}`);
+    return;
+  }
+  if (!result.ok) {
+    hideRunning();
+    setButtonsEnabled(true);
+    if (result.error === 'busy') {
+      showBanner('error', 'An operation is already running.');
+    } else {
+      showBanner('error', `Could not start: ${result.error}`);
+    }
+    return;
+  }
+  pollHandle = setInterval(pollStatus, 700);
+  pollStatus();
+}
+
+Object.entries(opButtons).forEach(([op, btn]) => {
+  btn.addEventListener('click', () => startOp(op));
+});
+
+document.getElementById('save-urls-btn').addEventListener('click', async () => {
+  const folderUrl = document.getElementById('folder-url').value.trim();
+  const masterUrl = document.getElementById('master-url').value.trim();
+  const msg = document.getElementById('save-urls-msg');
+  const result = await api().save_config(folderUrl, masterUrl);
+  msg.textContent = result.ok ? 'Saved.' : `Error: ${result.error}`;
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+});
+
+openRaterBtn.addEventListener('click', async () => {
+  await api().open_rater();
+});
+
+async function init() {
+  const config = await api().get_config();
+  document.getElementById('folder-url').value = config.folder_url || '';
+  document.getElementById('master-url').value = config.master_url || '';
+  setButtonsEnabled(true);
+  await refreshOpenRaterButton();
+
+  // Resume polling if an operation is still running in the background
+  // (e.g. the user navigated to the rater page and back mid-scrape).
+  const status = await api().get_status();
+  if (status.running) {
+    setButtonsEnabled(false);
+    showRunning(status.op);
+    pollHandle = setInterval(pollStatus, 700);
+    pollStatus();
+  }
+}
+
+if (window.pywebview && typeof window.pywebview.api.get_config === 'function') {
+  init();
+} else {
+  window.addEventListener('pywebviewready', init);
+}
+</script>
+</body>
+</html>

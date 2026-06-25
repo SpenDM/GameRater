@@ -339,12 +339,13 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
     return entries
 
 
-async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | None = None) -> dict[str, str | None]:
+async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | None = None,
+                            covers_dir: str = "covers") -> dict[str, str | None]:
     """Download and cache cover art for all games."""
     import urllib.request
 
     covers: dict[str, str | None] = {}
-    Path("covers").mkdir(exist_ok=True)
+    Path(covers_dir).mkdir(parents=True, exist_ok=True)
     list_cover_urls = list_cover_urls or {}
 
     print(f"  Processing cover art for {len(games)} games...")
@@ -354,7 +355,7 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
         local_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
 
         for ext in ['jpg', 'jpeg', 'png', 'webp']:
-            local_path = Path(f"covers/{local_slug}.{ext}")
+            local_path = Path(covers_dir) / f"{local_slug}.{ext}"
             if local_path.exists():
                 covers[title] = str(local_path)
                 print(f"  ✓ {title}: cached")
@@ -374,7 +375,7 @@ async def fetch_all_covers(games: list[dict], list_cover_urls: dict[str, str] | 
         ext = url_path.rsplit('.', 1)[-1].lower()
         if ext not in ('jpg', 'jpeg', 'png', 'webp'):
             ext = 'jpg'
-        local_path = Path(f"covers/{local_slug}.{ext}")
+        local_path = Path(covers_dir) / f"{local_slug}.{ext}"
         try:
             req = urllib.request.Request(cover_url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -568,6 +569,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{title}</title>
+  <link rel="icon" type="image/png" href="GameRaterLogo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -1260,6 +1262,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
 <header>
   <h1>Spencer's <span>Game Log</span></h1>
+  <a id="launcher-link" href="#" style="display:none; font-size:0.85rem; color:var(--text-dim); text-decoration:none;">&larr; Launcher</a>
 </header>
 
 <div class="year-tabs" id="year-tabs"></div>
@@ -1405,7 +1408,7 @@ function markDirty() {{
 }}
 
 // ── CSV export (all years) ────────────────────────────
-function saveCSV() {{
+async function saveCSV() {{
   const rows = [['title', 'rating', 'review', 'url', 'year_played', 'release_year', 'goty_categories']];
   YEARS.forEach(yr => {{
     const yrState = ALL_STATE[yr];
@@ -1422,14 +1425,28 @@ function saveCSV() {{
     }});
   }});
   const csv = rows.map(r => r.join(',')).join('\\n');
-  const blob = new Blob([csv], {{ type: 'text/csv' }});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'games.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  dirty = false;
   const btn = document.getElementById('save-btn');
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.save_csv) {{
+    const result = await window.pywebview.api.save_csv(csv);
+    if (!result.ok) {{
+      btn.textContent = '✗ Save failed';
+      setTimeout(() => {{
+        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
+      }}, 2500);
+      return;
+    }}
+  }} else {{
+    // Browser-only fallback (e.g. opening gamelog.html outside the app)
+    const blob = new Blob([csv], {{ type: 'text/csv' }});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'games.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }}
+
+  dirty = false;
   btn.textContent = '✓ Saved';
   setTimeout(() => {{
     btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
@@ -1976,6 +1993,15 @@ function renderGoty() {{
   buildYearTabs();
   applyViewAvailability();
   setView(yearMode(currentYear) !== 'full' ? 'goty' : 'tier');
+
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_launcher) {{
+    const link = document.getElementById('launcher-link');
+    link.style.display = 'inline-block';
+    link.addEventListener('click', e => {{
+      e.preventDefault();
+      window.pywebview.api.open_launcher();
+    }});
+  }}
 }})();
 </script>
 </body>
@@ -1983,38 +2009,73 @@ function renderGoty() {{
 """
 
 
+# ── Shared tail helpers (used by all three create_game_log_* scripts) ─────────
+
+def fetch_release_years_and_update(games: list[dict], csv_path: str, log) -> None:
+    """Fetch missing release years for games with a url, write csv if anything changed."""
+    log("\nFetching release years...")
+    release_years = asyncio.run(fetch_release_years(games))
+    if release_years:
+        for game in games:
+            if game['title'] in release_years:
+                game['release_year'] = release_years[game['title']]
+        write_csv(csv_path, games)
+        log(f"  CSV updated with release years → {csv_path}")
+
+
+def fetch_covers_and_render(games: list[dict], cover_urls: dict[str, str], page_urls: dict[str, str],
+                             played_years: list[int], out_path: str, covers_dir: str, log) -> dict:
+    """Fetch cover art, compute year tabs, render and write the HTML. Returns a result dict."""
+    log("\nFetching cover art...")
+    covers = asyncio.run(fetch_all_covers(games, cover_urls, covers_dir=covers_dir))
+
+    years, year_modes = compute_year_tabs(games, played_years)
+
+    log(f"\nGenerating {out_path}...")
+    html = generate_html(games, covers, page_urls=page_urls, years=years, year_modes=year_modes)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+
+    log(f"Done → {out_path}")
+    return {'years': years, 'covers_found': sum(1 for v in covers.values() if v), 'out_path': out_path}
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
-def main():
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
-    out_path = sys.argv[2] if len(sys.argv) > 2 else 'gamelog.html'
+def run_all_played_lists(csv_path: str, out_path: str, folder_url: str = BACKLOGGD_FOLDER_URL,
+                          covers_dir: str = "covers", progress_cb=None) -> dict:
+    def log(msg: str) -> None:
+        print(msg)
+        if progress_cb:
+            progress_cb(msg)
 
     if not os.path.exists(csv_path):
         write_csv(csv_path, [])
-        print(f"Created empty {csv_path}")
+        log(f"Created empty {csv_path}")
 
-    print(f"Reading {csv_path}...")
+    log(f"Reading {csv_path}...")
     games = read_csv(csv_path)
-    print(f"  Found {len(games)} game(s).")
+    log(f"  Found {len(games)} game(s).")
 
-    print(f"\nDiscovering year lists from Backloggd folder...")
-    year_lists = asyncio.run(fetch_year_lists(BACKLOGGD_FOLDER_URL))
+    log("\nDiscovering year lists from Backloggd folder...")
+    year_lists = asyncio.run(fetch_year_lists(folder_url))
 
     all_cover_urls: dict[str, str] = {}
     all_page_urls:  dict[str, str] = {}
+    added_total = 0
+    csv_changed = False
 
     if year_lists:
-        csv_changed = False
-
         for year, list_url in year_lists:
-            print(f"\nFetching games for {year}...")
+            log(f"\nFetching games for {year}...")
             entries = asyncio.run(fetch_backloggd_list(list_url))
             if not entries:
-                print(f"  Could not fetch list for {year}.")
+                log(f"  Could not fetch list for {year}.")
                 continue
             games, added = merge_list_into_games(games, entries, year=year)
             if added:
-                print(f"  Added {added} new game(s) for {year}.")
+                log(f"  Added {added} new game(s) for {year}.")
+                added_total += added
                 csv_changed = True
             all_cover_urls.update({e['title']: e['cover_url'] for e in entries if e.get('cover_url')})
             all_page_urls.update( {e['title']: e['page_url']  for e in entries if e.get('page_url')})
@@ -2027,42 +2088,34 @@ def main():
 
         if csv_changed:
             write_csv(csv_path, games)
-            print(f"\nCSV updated → {csv_path}")
+            log(f"\nCSV updated → {csv_path}")
         else:
-            print(f"\nNo CSV changes.")
+            log("\nNo CSV changes.")
 
-        print(f"  Page URLs captured: {len(all_page_urls)}")
+        log(f"  Page URLs captured: {len(all_page_urls)}")
     else:
-        print("  ⚠  No year lists found — generating HTML from existing data only.")
+        log("  ⚠  No year lists found — generating HTML from existing data only.")
 
     played_years = [yr for yr, _ in year_lists] if year_lists else []
 
-    print(f"\nFetching release years...")
-    release_years = asyncio.run(fetch_release_years(games))
-    if release_years:
-        for game in games:
-            if game['title'] in release_years:
-                game['release_year'] = release_years[game['title']]
-        write_csv(csv_path, games)
-        print(f"  CSV updated with release years → {csv_path}")
+    fetch_release_years_and_update(games, csv_path, log)
+    result = fetch_covers_and_render(games, all_cover_urls, all_page_urls, played_years,
+                                      out_path, covers_dir, log)
 
-    print(f"\nFetching cover art...")
-    covers = asyncio.run(fetch_all_covers(games, all_cover_urls))
+    log("")
+    log("Tips:")
+    log("  • Re-run any time to sync new games from Backloggd and refresh the page.")
+    log("  • Edit games.csv to add ratings and reviews for unrated games.")
+    log("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
+    log("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
 
-    years, year_modes = compute_year_tabs(games, played_years)
+    return {'added': added_total, 'csv_changed': csv_changed, **result}
 
-    print(f"\nGenerating {out_path}...")
-    html = generate_html(games, covers, page_urls=all_page_urls, years=years, year_modes=year_modes)
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(html)
 
-    print(f"Done → {out_path}")
-    print()
-    print("Tips:")
-    print("  • Re-run any time to sync new games from Backloggd and refresh the page.")
-    print("  • Edit games.csv to add ratings and reviews for unrated games.")
-    print("  • Drop manual covers in a covers/ folder as <slug>.jpg to override")
-    print("    Backloggd lookups (e.g. 'hollow-knight.jpg').")
+def main():
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else 'games.csv'
+    out_path = sys.argv[2] if len(sys.argv) > 2 else 'gamelog.html'
+    run_all_played_lists(csv_path, out_path, BACKLOGGD_FOLDER_URL)
 
 
 if __name__ == '__main__':
