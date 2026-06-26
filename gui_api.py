@@ -4,14 +4,60 @@ An instance of Api is passed to webview.create_window(js_api=...), making
 every public method callable from JS as window.pywebview.api.<name>(...).
 """
 
+import http.server
+import json
 import os
 import subprocess
 import sys
 import threading
 import webbrowser
 
+_SAVE_SERVER_PORT = 57432
+
+
+def _make_save_handler(appdata_dir):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_OPTIONS(self):
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+
+        def do_POST(self):
+            if self.path != '/save-csv':
+                self.send_response(404)
+                self.end_headers()
+                return
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length).decode('utf-8')
+            try:
+                appdata.get_csv_path(appdata_dir).write_text(body, encoding='utf-8')
+                self._respond(200, b'{"ok":true}')
+                try:
+                    rebuild_html_from_csv(
+                        str(appdata.get_csv_path(appdata_dir)),
+                        str(appdata.get_covers_dir(appdata_dir)),
+                        str(appdata.get_html_path(appdata_dir)),
+                    )
+                except Exception:
+                    pass
+            except Exception as e:
+                self._respond(500, json.dumps({'ok': False, 'error': str(e)}).encode())
+
+        def _respond(self, code, body):
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):
+            pass
+    return Handler
+
 import appdata
-from create_game_log_all_played_lists import run_all_played_lists
+from create_game_log_all_played_lists import rebuild_html_from_csv, run_all_played_lists
 from create_game_log_current_year import run_current_year
 from create_game_log_historic import run_historic
 
@@ -46,6 +92,13 @@ class Api:
             browsers_dir = os.path.join(self.appdata_dir, 'playwright-browsers')
             os.makedirs(browsers_dir, exist_ok=True)
             os.environ['PLAYWRIGHT_BROWSERS_PATH'] = browsers_dir
+        try:
+            server = http.server.HTTPServer(
+                ('127.0.0.1', _SAVE_SERVER_PORT), _make_save_handler(self.appdata_dir)
+            )
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+        except OSError:
+            pass  # port already in use (second instance or other app)
 
     # ── Config ──────────────────────────────────────────────────────────
 
@@ -106,9 +159,20 @@ class Api:
     def save_csv(self, csv_text: str) -> dict:
         try:
             appdata.get_csv_path(self.appdata_dir).write_text(csv_text, encoding='utf-8')
+            threading.Thread(target=self._rebuild_html, daemon=True).start()
             return {'ok': True}
         except OSError as e:
             return {'ok': False, 'error': str(e)}
+
+    def _rebuild_html(self) -> None:
+        try:
+            rebuild_html_from_csv(
+                str(appdata.get_csv_path(self.appdata_dir)),
+                str(appdata.get_covers_dir(self.appdata_dir)),
+                str(appdata.get_html_path(self.appdata_dir)),
+            )
+        except Exception:
+            pass
 
     # ── Chromium auto-install ──────────────────────────────────────────
 

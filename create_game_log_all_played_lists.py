@@ -1301,9 +1301,9 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <div class="goty-view" id="goty-view" style="display:none;"></div>
 </main>
 
-<button class="save-btn" id="save-btn" onclick="saveCSV()" title="Download updated CSV">
+<button class="save-btn" id="save-btn" onclick="saveCSV()" title="Save ratings">
   <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg>
-  Save CSV
+  Save
 </button>
 
 <script>
@@ -1432,24 +1432,41 @@ async function saveCSV() {{
     if (!result.ok) {{
       btn.textContent = '✗ Save failed';
       setTimeout(() => {{
-        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
+        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
       }}, 2500);
       return;
     }}
   }} else {{
-    // Browser-only fallback (e.g. opening gamelog.html outside the app)
-    const blob = new Blob([csv], {{ type: 'text/csv' }});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'games.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    // Try the local save server (app open, rater page in browser)
+    try {{
+      const resp = await fetch('http://127.0.0.1:57432/save-csv', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'text/csv' }},
+        body: csv,
+      }});
+      const result = await resp.json();
+      if (!result.ok) {{
+        btn.textContent = '✗ Save failed';
+        setTimeout(() => {{
+          btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
+        }}, 2500);
+        return;
+      }}
+    }} catch (_) {{
+      // App not running — fall back to browser download
+      const blob = new Blob([csv], {{ type: 'text/csv' }});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'games.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }}
   }}
 
   dirty = false;
   btn.textContent = '✓ Saved';
   setTimeout(() => {{
-    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save CSV`;
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
     btn.classList.remove('visible');
   }}, 1800);
 }}
@@ -2038,6 +2055,17 @@ def fetch_covers_and_render(games: list[dict], cover_urls: dict[str, str], page_
 
     log(f"Done → {out_path}")
     return {'years': years, 'covers_found': sum(1 for v in covers.values() if v), 'out_path': out_path}
+
+
+def rebuild_html_from_csv(csv_path: str, covers_dir: str, out_path: str) -> None:
+    """Regenerate gamelog.html from games.csv using only locally cached covers (no network)."""
+    games = read_csv(csv_path)
+    covers = asyncio.run(fetch_all_covers(games, list_cover_urls={}, covers_dir=covers_dir))
+    played_years = [int(g['year_played']) for g in games if g.get('year_played', '').isdigit()]
+    years, year_modes = compute_year_tabs(games, played_years)
+    html = generate_html(games, covers, years=years, year_modes=year_modes)
+    from pathlib import Path
+    Path(out_path).write_text(html, encoding='utf-8')
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
