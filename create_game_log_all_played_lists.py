@@ -600,6 +600,12 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
+    html {{ scrollbar-color: var(--accent) transparent; scrollbar-width: thin; }}
+    ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+    ::-webkit-scrollbar-track {{ background: transparent; }}
+    ::-webkit-scrollbar-thumb {{ background: var(--accent); border-radius: 6px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: #bfa0ff; }}
+
     body {{
       background: var(--bg);
       color: var(--text);
@@ -1217,44 +1223,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       padding: 0;
     }}
 
-    /* ── Save button ── */
-    .save-btn {{
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: var(--accent);
-      color: #0f0f13;
-      border: none;
-      border-radius: 10px;
-      padding: 0.65rem 1.4rem;
-      font-family: 'Syne', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-      transition: all 0.15s ease;
-      z-index: 100;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(6px);
-    }}
-
-    .save-btn.visible {{
-      opacity: 1;
-      pointer-events: all;
-      transform: translateY(0);
-    }}
-
-    .save-btn:hover {{
-      background: #bfa0ff;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
-    }}
-
-    .save-btn:active {{ transform: translateY(1px); }}
-
     /* ── Responsive ── */
     @media (max-width: 600px) {{
       header, .year-tabs, .game-count, .toolbar, main {{ padding-left: 1rem; padding-right: 1rem; }}
@@ -1266,7 +1234,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       .goty-grid {{ grid-template-columns: repeat(2, 1fr); }}
       .goty-slot-goty .goty-slot-cover, .goty-slot-goty .goty-slot-empty {{ width: 150px; height: 200px; }}
       .goty-grid .goty-slot-cover, .goty-grid .goty-slot-empty {{ width: 96px; height: 128px; }}
-      .save-btn {{ bottom: 1rem; right: 1rem; }}
     }}
   </style>
 </head>
@@ -1275,7 +1242,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 <div class="year-tabs" id="year-tabs" style="display:none;"></div>
 
 <div class="toolbar">
-  <div class="view-toggle-col">
+  <div class="view-toggle-col" style="display:none;">
     <div class="view-toggle" style="display:none;">
       <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
@@ -1307,11 +1274,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <div class="tier-view" id="tier-view"></div>
   <div class="goty-view" id="goty-view" style="display:none;"></div>
 </main>
-
-<button class="save-btn" id="save-btn" onclick="saveCSV()" title="Save ratings">
-  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg>
-  Save
-</button>
 
 <script>
 const YEARS = {years_json};
@@ -1407,15 +1369,19 @@ function setYear(yr) {{
   setView(yearMode(yr) !== 'full' ? 'goty' : currentView);
 }}
 
-// ── Dirty tracking ────────────────────────────────────
+// ── Dirty tracking + autosave ─────────────────────────
 let dirty = false;
+let autosaveTimer = null;
+
 function markDirty() {{
   dirty = true;
-  document.getElementById('save-btn').classList.add('visible');
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  // Debounce so a burst of changes (e.g. a drag) saves once it settles.
+  autosaveTimer = setTimeout(saveCSV, 500);
 }}
 
 // ── CSV export (all years) ────────────────────────────
-async function saveCSV() {{
+function buildCSV() {{
   const rows = [['title', 'rating', 'review', 'url', 'year_played', 'release_year', 'goty_categories']];
   YEARS.forEach(yr => {{
     const yrState = ALL_STATE[yr];
@@ -1431,52 +1397,29 @@ async function saveCSV() {{
       }});
     }});
   }});
-  const csv = rows.map(r => r.join(',')).join('\\n');
-  const btn = document.getElementById('save-btn');
+  return rows.map(r => r.join(',')).join('\\n');
+}}
 
+async function saveCSV() {{
+  const csv = buildCSV();
   const api = pyapi();
   if (api && api.save_csv) {{
-    const result = await api.save_csv(csv);
-    if (!result.ok) {{
-      btn.textContent = '✗ Save failed';
-      setTimeout(() => {{
-        btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
-      }}, 2500);
-      return;
-    }}
-  }} else {{
-    // Try the local save server (app open, rater page in browser)
     try {{
-      const resp = await fetch('http://127.0.0.1:57432/save-csv', {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'text/csv' }},
-        body: csv,
-      }});
-      const result = await resp.json();
-      if (!result.ok) {{
-        btn.textContent = '✗ Save failed';
-        setTimeout(() => {{
-          btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
-        }}, 2500);
-        return;
-      }}
-    }} catch (_) {{
-      // App not running — fall back to browser download
-      const blob = new Blob([csv], {{ type: 'text/csv' }});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'games.csv';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }}
+      const result = await api.save_csv(csv);
+      if (result && result.ok) dirty = false;
+    }} catch (e) {{}}
+    return;
   }}
-
-  dirty = false;
-  btn.textContent = '✓ Saved';
-  setTimeout(() => {{
-    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 10.5L3 6h3V1h3v5h3L7.5 10.5Z" fill="currentColor"/><rect x="1" y="12" width="13" height="2" rx="1" fill="currentColor"/></svg> Save`;
-    btn.classList.remove('visible');
-  }}, 1800);
+  // Fallback: local save server (e.g. the page opened standalone in a browser)
+  try {{
+    const resp = await fetch('http://127.0.0.1:57432/save-csv', {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'text/csv' }},
+      body: csv,
+    }});
+    const result = await resp.json();
+    if (result && result.ok) dirty = false;
+  }} catch (_) {{}}
 }}
 
 // ── Drag state ────────────────────────────────────────

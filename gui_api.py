@@ -157,6 +157,11 @@ class Api:
         self.window.toggle_fullscreen()
         return {'ok': True}
 
+    def quit_app(self) -> dict:
+        if self.window:
+            self.window.destroy()
+        return {'ok': True}
+
     def open_external(self, url: str) -> dict:
         url = (url or '').strip()
         if not (url.startswith('http://') or url.startswith('https://')):
