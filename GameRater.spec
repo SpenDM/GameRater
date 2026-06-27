@@ -6,6 +6,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('assets/launcher.html', 'assets'),
+        ('assets/html2canvas.min.js', 'assets'),
         ('assets/images', 'assets/images'),
         ('assets/covers', 'assets/covers'),
         ('assets/GameRaterLogo.png', 'assets'),

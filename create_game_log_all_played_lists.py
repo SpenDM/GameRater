@@ -585,6 +585,7 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="html2canvas.min.js"></script>
   <style>
     :root {{
       --bg:          #0f0f13;
@@ -1222,6 +1223,26 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       background: transparent;
       padding: 0;
     }}
+
+    /* ── Off-screen container used to rasterize an export image ── */
+    .export-capture {{
+      position: fixed;
+      left: -100000px;
+      top: 0;
+      background: var(--bg);
+      padding: 28px;
+      box-sizing: border-box;
+    }}
+
+    .export-capture .export-title {{
+      font-family: 'Syne', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 18px;
+    }}
+
+    .export-capture .goty-slots {{ margin-top: 6px; }}
 
     /* ── Responsive ── */
     @media (max-width: 600px) {{
@@ -1978,6 +1999,71 @@ function renderGoty() {{
     `${{candidates.length}} candidate${{candidates.length !== 1 ? 's' : ''}}`;
 }}
 
+// ── Export the current view to a PNG (rasterized with html2canvas) ────
+// Builds a clean off-screen copy of just the tiers (Tier view, unrated
+// excluded) or the award slots (GOTY view, candidates excluded) for the
+// current year, then hands the resulting PNG data URL back to the launcher.
+async function exportImage() {{
+  const view = currentView;
+  if (view !== 'tier' && view !== 'goty') {{
+    return {{ ok: false, error: 'unsupported-view' }};
+  }}
+  if (typeof html2canvas !== 'function') {{
+    return {{ ok: false, error: 'html2canvas-missing' }};
+  }}
+
+  const refView = document.getElementById(view === 'tier' ? 'tier-view' : 'goty-view');
+  const width = Math.max(refView ? refView.offsetWidth : 0, 640);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'export-capture';
+  wrap.style.width = width + 'px';
+
+  const heading = document.createElement('div');
+  heading.className = 'export-title';
+  heading.textContent = (view === 'tier' ? 'Tier List' : 'Game of the Year') + ' — ' + currentYear;
+  wrap.appendChild(heading);
+
+  if (view === 'tier') {{
+    // Rated tiers only — the "unrated" row is intentionally left out.
+    const tiers = document.createElement('div');
+    tiers.className = 'tier-view';
+    ORDER.forEach(rating => tiers.appendChild(buildTierRow(rating)));
+    wrap.appendChild(tiers);
+  }} else {{
+    // All award slots, without the candidates picker below them.
+    const slotsWrap = document.createElement('div');
+    slotsWrap.className = 'goty-slots';
+    const gotyRow = document.createElement('div');
+    gotyRow.className = 'goty-row-main';
+    gotyRow.appendChild(buildGotySlot(GOTY_CATEGORIES[0], true));
+    slotsWrap.appendChild(gotyRow);
+    if (yearMode(currentYear) !== 'goty-award') {{
+      const grid = document.createElement('div');
+      grid.className = 'goty-grid';
+      GOTY_CATEGORIES.slice(1).forEach(cat => grid.appendChild(buildGotySlot(cat, false)));
+      slotsWrap.appendChild(grid);
+    }}
+    wrap.appendChild(slotsWrap);
+  }}
+
+  document.body.appendChild(wrap);
+  try {{
+    const bg = getComputedStyle(document.body).backgroundColor || '#0f0f13';
+    const canvas = await html2canvas(wrap, {{
+      backgroundColor: bg,
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    }});
+    return {{ ok: true, dataUrl: canvas.toDataURL('image/png'), view: view, year: String(currentYear) }};
+  }} catch (e) {{
+    return {{ ok: false, error: String(e) }};
+  }} finally {{
+    wrap.remove();
+  }}
+}}
+
 // Bridge so the launcher sidebar (parent frame) can drive year/view selection
 // and read the current state. The in-page year tabs / view toggle are hidden;
 // these call the same setYear/setView functions that update everything.
@@ -1991,6 +2077,7 @@ window.raterBridge = {{
   }}),
   setYear: (yr) => {{ setYear(yr); return window.raterBridge.getMeta(); }},
   setView: (v) => {{ setView(v); return window.raterBridge.getMeta(); }},
+  exportImage: () => exportImage(),
 }};
 
 (function init() {{

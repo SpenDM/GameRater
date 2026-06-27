@@ -4,13 +4,16 @@ An instance of Api is passed to webview.create_window(js_api=...), making
 every public method callable from JS as window.pywebview.api.<name>(...).
 """
 
+import base64
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
 import webbrowser
+from pathlib import Path
 
 _SAVE_SERVER_PORT = 57432
 
@@ -161,6 +164,31 @@ class Api:
         if self.window:
             self.window.destroy()
         return {'ok': True}
+
+    def export_image(self, data_url: str, view: str, year) -> dict:
+        """Save a base64 PNG data URL (produced by html2canvas in the rater
+        page) to the user's Downloads folder. Returns the saved path."""
+        try:
+            if not data_url or ',' not in data_url:
+                return {'ok': False, 'error': 'no image data'}
+            png_bytes = base64.b64decode(data_url.split(',', 1)[1])
+
+            downloads = Path.home() / 'Downloads'
+            downloads.mkdir(parents=True, exist_ok=True)
+
+            kind = 'GOTY' if view == 'goty' else 'Tiers'
+            year_str = re.sub(r'[^0-9A-Za-z]', '', str(year)) or 'export'
+            base = f'GameRater_{kind}_{year_str}'
+            dest = downloads / f'{base}.png'
+            n = 2
+            while dest.exists():
+                dest = downloads / f'{base}_{n}.png'
+                n += 1
+
+            dest.write_bytes(png_bytes)
+            return {'ok': True, 'path': str(dest), 'name': dest.name}
+        except Exception as e:
+            return {'ok': False, 'error': str(e)}
 
     def open_external(self, url: str) -> dict:
         url = (url or '').strip()

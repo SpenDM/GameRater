@@ -85,6 +85,13 @@ def ensure_appdata_initialized() -> Path:
     if bundled_launcher.exists():
         shutil.copy2(bundled_launcher, get_launcher_path(appdata))
 
+    # html2canvas powers the rater page's "Export Image" feature. Copy it
+    # fresh each launch (alongside gamelog.html) so it's served same-origin by
+    # pywebview's HTTP server and picks up any bundled upgrade.
+    bundled_html2canvas = bundle / 'assets' / 'html2canvas.min.js'
+    if bundled_html2canvas.exists():
+        shutil.copy2(bundled_html2canvas, appdata / 'html2canvas.min.js')
+
     games_csv = get_csv_path(appdata)
     if not games_csv.exists():
         bundled_csv = bundle / 'assets' / 'games.csv'

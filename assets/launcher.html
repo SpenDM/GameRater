@@ -125,10 +125,28 @@
       transition: all 0.15s ease;
     }
 
-    .quit-btn {
+    .bottom-actions {
       margin-top: auto;
-      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
+
+    .export-btn, .quit-btn { width: 100%; }
+
+    .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .export-msg {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      text-align: center;
+      min-height: 1em;
+      word-break: break-word;
+    }
+
+    .export-msg.error { color: var(--bad); }
 
     .quit-btn:hover { border-color: var(--bad); color: var(--bad); }
 
@@ -352,7 +370,11 @@
       <div class="year-list" id="year-list"></div>
     </section>
 
-    <button class="btn quit-btn" id="quit-btn">Quit</button>
+    <div class="bottom-actions">
+      <button class="btn export-btn" id="export-btn">Export Image</button>
+      <span class="export-msg" id="export-msg"></span>
+      <button class="btn quit-btn" id="quit-btn">Quit</button>
+    </div>
   </aside>
 
   <iframe id="rater-frame" title="Rater" src="gamelog.html"></iframe>
@@ -504,6 +526,51 @@ function scheduleSaveUrls() {
 
 document.getElementById('quit-btn').addEventListener('click', () => {
   if (api() && api().quit_app) api().quit_app();
+});
+
+// ── Export Image (current view → PNG in Downloads) ─────────────────────
+const exportBtn = document.getElementById('export-btn');
+const exportMsg = document.getElementById('export-msg');
+
+function setExportMsg(text, isError) {
+  exportMsg.textContent = text;
+  exportMsg.classList.toggle('error', !!isError);
+}
+
+exportBtn.addEventListener('click', async () => {
+  const bridge = raterBridge();
+  if (!bridge || typeof bridge.exportImage !== 'function') {
+    setExportMsg('Rater page not ready yet.', true);
+    return;
+  }
+  const meta = bridge.getMeta();
+  if (meta.currentView !== 'tier' && meta.currentView !== 'goty') {
+    setExportMsg('Switch to Tier or GOTY view to export.', true);
+    return;
+  }
+
+  exportBtn.disabled = true;
+  setExportMsg('Rendering image…', false);
+  try {
+    const img = await bridge.exportImage();
+    if (!img || !img.ok) {
+      const reason = img && img.error === 'unsupported-view'
+        ? 'Switch to Tier or GOTY view to export.'
+        : `Could not create image${img && img.error ? `: ${img.error}` : ''}.`;
+      setExportMsg(reason, true);
+      return;
+    }
+    const saved = await api().export_image(img.dataUrl, img.view, img.year);
+    if (saved && saved.ok) {
+      setExportMsg(`Saved ${saved.name} to Downloads.`, false);
+    } else {
+      setExportMsg(`Could not save${saved && saved.error ? `: ${saved.error}` : ''}.`, true);
+    }
+  } catch (e) {
+    setExportMsg(`Export failed: ${e}`, true);
+  } finally {
+    exportBtn.disabled = false;
+  }
 });
 
 // Esc toggles fullscreen so the user is never trapped with no window controls.
