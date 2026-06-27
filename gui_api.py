@@ -112,9 +112,6 @@ class Api:
         except OSError as e:
             return {'ok': False, 'error': str(e)}
 
-    def has_rater_page(self) -> bool:
-        return appdata.get_html_path(self.appdata_dir).exists()
-
     # ── Scrape operations ──────────────────────────────────────────────
 
     def start_current_year(self) -> dict:
@@ -138,34 +135,26 @@ class Api:
         with _status_lock:
             return dict(_status, log=list(_status['log']))
 
-    # ── Navigation ──────────────────────────────────────────────────────
+    # ── Rater page / window ─────────────────────────────────────────────
 
-    def open_rater(self) -> dict:
-        html_path = appdata.get_html_path(self.appdata_dir)
-        if not html_path.exists():
-            return {'ok': False, 'error': 'no rater page yet'}
-        if not self.window:
-            return {'ok': False, 'error': 'no window'}
-        # Rebuild from CSV (covers-only, no network) so an already-installed
-        # gamelog.html always carries the latest template/JS.
+    def ensure_rater_page(self) -> dict:
+        """Rebuild gamelog.html from the CSV (covers-only, no network) so the
+        rater iframe always has a page to show with the latest template/JS.
+        Called at startup before the window loads."""
         try:
             rebuild_html_from_csv(
                 str(appdata.get_csv_path(self.appdata_dir)),
                 str(appdata.get_covers_dir(self.appdata_dir)),
-                str(html_path),
+                str(appdata.get_html_path(self.appdata_dir)),
             )
-        except Exception:
-            pass
-        self.window.resize(1200, 860)
-        self.window.load_url(str(html_path))
-        return {'ok': True}
+            return {'ok': True}
+        except Exception as e:
+            return {'ok': False, 'error': str(e)}
 
-    def open_launcher(self) -> dict:
+    def toggle_fullscreen(self) -> dict:
         if not self.window:
             return {'ok': False, 'error': 'no window'}
-        launcher_path = appdata.get_launcher_path(self.appdata_dir)
-        self.window.load_url(str(launcher_path))
-        self.window.resize(900, 820)
+        self.window.toggle_fullscreen()
         return {'ok': True}
 
     def open_external(self, url: str) -> dict:

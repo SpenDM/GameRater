@@ -16,6 +16,8 @@ from gui_api import Api
 def main():
     api = Api()
     bundle = appdata.get_bundle_dir()
+    # Make sure the rater page exists before the window's iframe loads it.
+    api.ensure_rater_page()
     # Load the launcher from AppData (not the bundle) so it shares a directory
     # with the generated rater page; pywebview roots its HTTP server at this
     # directory and can then serve gamelog.html and its covers/images too.
@@ -25,9 +27,10 @@ def main():
         'GameRater',
         url=str(launcher_path),
         js_api=api,
-        width=900,
+        width=1280,
         height=820,
-        min_size=(700, 600),
+        min_size=(900, 600),
+        fullscreen=True,
     )
     api.window = window
     webview.start(icon=str(icon_path) if icon_path.exists() else None)

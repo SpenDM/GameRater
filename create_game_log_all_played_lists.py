@@ -1272,16 +1272,11 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 </head>
 <body>
 
-<header>
-  <h1>Spencer's <span>Game Log</span></h1>
-  <a id="launcher-link" href="#" style="display:none; font-size:0.85rem; color:var(--text-dim); text-decoration:none;">&larr; Launcher</a>
-</header>
-
-<div class="year-tabs" id="year-tabs"></div>
+<div class="year-tabs" id="year-tabs" style="display:none;"></div>
 
 <div class="toolbar">
   <div class="view-toggle-col">
-    <div class="view-toggle">
+    <div class="view-toggle" style="display:none;">
       <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
       </button>
@@ -1439,8 +1434,9 @@ async function saveCSV() {{
   const csv = rows.map(r => r.join(',')).join('\\n');
   const btn = document.getElementById('save-btn');
 
-  if (window.pywebview && window.pywebview.api && window.pywebview.api.save_csv) {{
-    const result = await window.pywebview.api.save_csv(csv);
+  const api = pyapi();
+  if (api && api.save_csv) {{
+    const result = await api.save_csv(csv);
     if (!result.ok) {{
       btn.textContent = '✗ Save failed';
       setTimeout(() => {{
@@ -1519,10 +1515,23 @@ function getInitial(title) {{
   return title.trim()[0]?.toUpperCase() ?? '?';
 }}
 
+// The rater is hosted in an iframe inside the launcher window. pywebview's
+// JS API lives on the top frame, so reach it via window.parent (same origin).
+function pyapi() {{
+  if (window.pywebview && window.pywebview.api) return window.pywebview.api;
+  try {{
+    if (window.parent && window.parent.pywebview && window.parent.pywebview.api) {{
+      return window.parent.pywebview.api;
+    }}
+  }} catch (e) {{}}
+  return null;
+}}
+
 function openExternal(url) {{
   if (!url) return;
-  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external) {{
-    window.pywebview.api.open_external(url);
+  const api = pyapi();
+  if (api && api.open_external) {{
+    api.open_external(url);
   }} else {{
     window.open(url, '_blank', 'noopener');
   }}
@@ -2026,20 +2035,26 @@ function renderGoty() {{
     `${{candidates.length}} candidate${{candidates.length !== 1 ? 's' : ''}}`;
 }}
 
+// Bridge so the launcher sidebar (parent frame) can drive year/view selection
+// and read the current state. The in-page year tabs / view toggle are hidden;
+// these call the same setYear/setView functions that update everything.
+window.raterBridge = {{
+  getMeta: () => ({{
+    years: YEARS,
+    yearModes: YEAR_MODES,
+    currentYear: currentYear,
+    currentView: currentView,
+    restricted: yearMode(currentYear) !== 'full',
+  }}),
+  setYear: (yr) => {{ setYear(yr); return window.raterBridge.getMeta(); }},
+  setView: (v) => {{ setView(v); return window.raterBridge.getMeta(); }},
+}};
+
 (function init() {{
   initAllState();
   buildYearTabs();
   applyViewAvailability();
   setView(yearMode(currentYear) !== 'full' ? 'goty' : 'tier');
-
-  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_launcher) {{
-    const link = document.getElementById('launcher-link');
-    link.style.display = 'inline-block';
-    link.addEventListener('click', e => {{
-      e.preventDefault();
-      window.pywebview.api.open_launcher();
-    }});
-  }}
 }})();
 </script>
 </body>
