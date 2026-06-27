@@ -517,11 +517,23 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
 
     page_urls = page_urls or {}
 
+    def cover_src(value: str) -> str:
+        """Normalize a cover value to a forward-slash URL relative to the HTML
+        file. Local cover files (whether stored as a relative 'covers/slug.jpg'
+        or an absolute path like 'C:\\...\\covers\\slug.jpg') always live in a
+        'covers' folder beside the page, so emit 'covers/<filename>'. Remote
+        fallback URLs (http/https) are passed through unchanged."""
+        if not value:
+            return ''
+        if value.startswith('http://') or value.startswith('https://'):
+            return value
+        return 'covers/' + os.path.basename(value)
+
     # Attach cover and url to each game
     games_with_meta = []
     for g in games:
         entry = dict(g)
-        entry['cover'] = covers.get(g['title']) or ''
+        entry['cover'] = cover_src(covers.get(g['title']) or '')
         entry['url'] = g.get('url') or page_urls.get(g['title']) or ''
         entry['release_year'] = g.get('release_year') or ''
         cats = (g.get('goty_categories') or '').strip()
@@ -1507,6 +1519,15 @@ function getInitial(title) {{
   return title.trim()[0]?.toUpperCase() ?? '?';
 }}
 
+function openExternal(url) {{
+  if (!url) return;
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external) {{
+    window.pywebview.api.open_external(url);
+  }} else {{
+    window.open(url, '_blank', 'noopener');
+  }}
+}}
+
 // ── List view ─────────────────────────────────────────
 function buildRow(game) {{
   const color = RATING_COLORS[game.rating] || '#888';
@@ -1525,7 +1546,7 @@ function buildRow(game) {{
   row.className = 'game-row' + (game.url ? ' clickable' : '');
   row.dataset.rating = game.rating;
   row.style.setProperty('--row-accent', color);
-  if (game.url) row.addEventListener('click', () => window.open(game.url, '_blank', 'noopener'));
+  if (game.url) row.addEventListener('click', () => openExternal(game.url));
   row.innerHTML = `
     <div class="game-cover-wrap cover-hover">${{coverHtml}}<span class="cover-hover-title">${{escapeHtml(game.title)}}</span></div>
     <div class="game-body">
@@ -1584,7 +1605,7 @@ function makeCoverItem(game, rating) {{
   }});
   item.addEventListener('click', () => {{
     if (wasDragged) {{ wasDragged = false; return; }}
-    if (game.url) window.open(game.url, '_blank', 'noopener');
+    if (game.url) openExternal(game.url);
   }});
   item.addEventListener('dragend', () => {{
     item.classList.remove('dragging');
@@ -1869,7 +1890,7 @@ function buildGotySlot(cat, large) {{
     }});
     artBox.addEventListener('click', () => {{
       if (wasDragged) {{ wasDragged = false; return; }}
-      if (holder.url) window.open(holder.url, '_blank', 'noopener');
+      if (holder.url) openExternal(holder.url);
     }});
   }} else {{
     artBox.classList.add('goty-slot-empty');
@@ -1950,7 +1971,7 @@ function buildGotyCandidate(game) {{
   }});
   item.addEventListener('click', () => {{
     if (wasDragged) {{ wasDragged = false; return; }}
-    if (game.url) window.open(game.url, '_blank', 'noopener');
+    if (game.url) openExternal(game.url);
   }});
 
   return item;

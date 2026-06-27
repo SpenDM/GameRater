@@ -144,14 +144,35 @@ class Api:
         html_path = appdata.get_html_path(self.appdata_dir)
         if not html_path.exists():
             return {'ok': False, 'error': 'no rater page yet'}
-        webbrowser.open(html_path.as_uri())
+        if not self.window:
+            return {'ok': False, 'error': 'no window'}
+        # Rebuild from CSV (covers-only, no network) so an already-installed
+        # gamelog.html always carries the latest template/JS.
+        try:
+            rebuild_html_from_csv(
+                str(appdata.get_csv_path(self.appdata_dir)),
+                str(appdata.get_covers_dir(self.appdata_dir)),
+                str(html_path),
+            )
+        except Exception:
+            pass
+        self.window.resize(1200, 860)
+        self.window.load_url(str(html_path))
         return {'ok': True}
 
     def open_launcher(self) -> dict:
         if not self.window:
             return {'ok': False, 'error': 'no window'}
-        launcher_path = appdata.get_bundle_dir() / 'assets' / 'launcher.html'
+        launcher_path = appdata.get_launcher_path(self.appdata_dir)
         self.window.load_url(str(launcher_path))
+        self.window.resize(900, 820)
+        return {'ok': True}
+
+    def open_external(self, url: str) -> dict:
+        url = (url or '').strip()
+        if not (url.startswith('http://') or url.startswith('https://')):
+            return {'ok': False, 'error': 'invalid url'}
+        webbrowser.open(url)
         return {'ok': True}
 
     # ── Save from rater page ───────────────────────────────────────────

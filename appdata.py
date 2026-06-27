@@ -47,6 +47,10 @@ def get_config_path(appdata_dir: Path) -> Path:
     return appdata_dir / 'config.json'
 
 
+def get_launcher_path(appdata_dir: Path) -> Path:
+    return appdata_dir / 'launcher.html'
+
+
 def ensure_appdata_initialized() -> Path:
     """Create the AppData dir and seed it with default assets on first run."""
     appdata = get_appdata_dir()
@@ -73,6 +77,13 @@ def ensure_appdata_initialized() -> Path:
         bundled_logo = bundle / 'assets' / 'GameRaterLogo.png'
         if bundled_logo.exists():
             shutil.copy2(bundled_logo, logo_path)
+
+    # The launcher must live alongside the generated rater page (gamelog.html)
+    # so pywebview's HTTP server roots itself here and can serve both. Copy it
+    # fresh on every launch so app upgrades pick up launcher.html changes.
+    bundled_launcher = bundle / 'assets' / 'launcher.html'
+    if bundled_launcher.exists():
+        shutil.copy2(bundled_launcher, get_launcher_path(appdata))
 
     games_csv = get_csv_path(appdata)
     if not games_csv.exists():
