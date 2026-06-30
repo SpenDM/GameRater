@@ -1234,14 +1234,6 @@ def generate_html(games: list[dict], covers: dict[str, str | None],
       box-sizing: border-box;
     }}
 
-    .export-capture .export-title {{
-      font-family: 'Syne', sans-serif;
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--text);
-      margin-bottom: 18px;
-    }}
-
     .export-capture .goty-slots {{ margin-top: 6px; }}
 
     /* ── Responsive ── */
@@ -2019,11 +2011,6 @@ async function exportImage() {{
   wrap.className = 'export-capture';
   wrap.style.width = width + 'px';
 
-  const heading = document.createElement('div');
-  heading.className = 'export-title';
-  heading.textContent = (view === 'tier' ? 'Tier List' : 'Game of the Year') + ' — ' + currentYear;
-  wrap.appendChild(heading);
-
   if (view === 'tier') {{
     // Rated tiers only — the "unrated" row is intentionally left out.
     const tiers = document.createElement('div');
@@ -2048,6 +2035,16 @@ async function exportImage() {{
   }}
 
   document.body.appendChild(wrap);
+  await Promise.all(Array.from(wrap.querySelectorAll('.tier-rating-img')).map(img =>
+    img.complete ? Promise.resolve() : new Promise(r => {{ img.onload = r; img.onerror = r; }})
+  ));
+  wrap.querySelectorAll('.tier-rating-img').forEach(img => {{
+    if (img.naturalWidth && img.naturalHeight) {{
+      const scale = Math.min(140 / img.naturalWidth, 140 / img.naturalHeight);
+      img.style.width  = Math.round(img.naturalWidth  * scale) + 'px';
+      img.style.height = Math.round(img.naturalHeight * scale) + 'px';
+    }}
+  }});
   try {{
     const bg = getComputedStyle(document.body).backgroundColor || '#0f0f13';
     const canvas = await html2canvas(wrap, {{
