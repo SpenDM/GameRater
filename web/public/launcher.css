@@ -50,24 +50,6 @@
       flex-direction: column;
     }
 
-    .auth-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      flex-shrink: 0;
-    }
-
-    .auth-bar .user-email {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
     .sidebar-scroll {
       flex: 1;
       overflow-y: auto;
@@ -162,6 +144,7 @@
 
     .export-msg.error { color: var(--bad); }
 
+    .quit-btn { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .quit-btn:hover { border-color: var(--bad); color: var(--bad); }
 
     .year-item:hover { border-color: var(--accent); color: var(--text); }
@@ -407,11 +390,6 @@
   color: var(--text-dim);
 }
 .login-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
-.user-email {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
-
 .save-status {
   font-size: 0.78rem;
   color: var(--text-dim);
