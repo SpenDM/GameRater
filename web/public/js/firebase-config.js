@@ -4,10 +4,10 @@
 // Fill these in from Firebase console → Project settings → Your apps → Web app.
 // See README.md ("External setup") for step-by-step instructions.
 window.__FIREBASE_CONFIG__ = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME",
+  apiKey: "AIzaSyCTV7jU7K60rhLXoX4ZPnURBbtPvzli2YY",
+  authDomain: "vg-ranker.firebaseapp.com",
+  projectId: "vg-ranker",
+  storageBucket: "vg-ranker.firebasestorage.app",
+  messagingSenderId: "880519054471",
+  appId: "1:880519054471:web:074c224049792fcf4b6422"
 };
