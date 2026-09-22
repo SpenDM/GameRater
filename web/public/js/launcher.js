@@ -89,7 +89,13 @@ function makeSaveCb() {
   return async (games) => {
     if (!uid) return false;
     setSaveStatus('saving');
-    try { await saveGames(uid, games); setSaveStatus('saved'); return true; }
+    try {
+      // JSON round-trip produces plain arrays/objects — cross-frame arrays have
+      // a foreign Array constructor that Firestore's serializer rejects.
+      await saveGames(uid, JSON.parse(JSON.stringify(games)));
+      setSaveStatus('saved');
+      return true;
+    }
     catch (e) { setSaveStatus('error', e.message || String(e)); return false; }
   };
 }
