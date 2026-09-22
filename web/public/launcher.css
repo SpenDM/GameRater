@@ -144,8 +144,7 @@
 
     .export-msg.error { color: var(--bad); }
 
-    .quit-btn { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .quit-btn:hover { border-color: var(--bad); color: var(--bad); }
+    .quit-btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .year-item:hover { border-color: var(--accent); color: var(--text); }
 
@@ -216,6 +215,9 @@
     }
 
     .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .quit-btn { color: var(--accent); }
+    .quit-btn:hover { border-color: var(--bad); color: var(--bad); }
 
     .btn:disabled {
       opacity: 0.4;
