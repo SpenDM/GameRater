@@ -5,3 +5,9 @@ build/
 dist/
 *.spec.bak
 .idea/
+
+# web app
+node_modules/
+.wrangler/
+web/.dev.vars
+*.log

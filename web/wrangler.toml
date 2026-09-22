@@ -1,0 +1,15 @@
+name = "gamerater"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets live in web/public; Pages Functions live in web/functions.
+pages_build_output_dir = "public"
+
+# Runtime configuration for the Pages Functions is set as environment variables
+# / secrets in the Cloudflare dashboard (or `wrangler pages secret put`), NOT
+# committed here:
+#   FIREBASE_PROJECT_ID   your Firebase project id (e.g. gamerater-abc12)
+#   GITHUB_REPO           "owner/name" of this GitHub repo
+#   GITHUB_TOKEN          fine-grained token with Actions: read/write (secret)
+#   GITHUB_REF            branch the scrape workflow lives on (optional, default "main")
+#   WORKFLOW_FILE         workflow filename (optional, default "scrape.yml")

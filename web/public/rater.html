@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rater</title>
+  <link rel="icon" type="image/png" href="assets/GameRaterLogo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="js/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="rater.css" />
+</head>
+<body>
+
+<div class="year-tabs" id="year-tabs" style="display:none;"></div>
+
+<div class="toolbar">
+  <div class="view-toggle-col" style="display:none;">
+    <div class="view-toggle" style="display:none;">
+      <button class="view-btn active" id="btn-tier" onclick="setView('tier')" title="Tier view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+      </button>
+      <button class="view-btn" id="btn-list" onclick="setView('list')" title="List view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+      </button>
+      <button class="view-btn" id="btn-goty" onclick="setView('goty')" title="GOTY view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <p class="game-count" id="game-count"></p>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <span class="filter-label">Filter</span>
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('fantastic', this)">Fantastic</button>
+    <button class="filter-btn" onclick="setFilter('great', this)">Great</button>
+    <button class="filter-btn" onclick="setFilter('good', this)">Good</button>
+    <button class="filter-btn" onclick="setFilter('okay', this)">Okay</button>
+    <button class="filter-btn" onclick="setFilter('mixed', this)">Mixed</button>
+    <button class="filter-btn" onclick="setFilter('lame', this)">Lame</button>
+    <button class="filter-btn" onclick="setFilter('unrated', this)">Unrated</button>
+  </div>
+</div>
+
+<main>
+  <div class="game-list" id="game-list" style="display:none;"></div>
+  <div class="tier-view" id="tier-view"></div>
+  <div class="goty-view" id="goty-view" style="display:none;"></div>
+</main>
+
+<script src="js/rater.js"></script>
+<script>
+  // The launcher (parent frame) loads the user's games from Firestore and calls
+  // window.initRater(games, saveCb). Signal readiness so it can (re)initialize.
+  if (window.parent && window.parent !== window && window.parent.onRaterFrameReady) {
+    window.parent.onRaterFrameReady();
+  }
+</script>
+</body>
+</html>

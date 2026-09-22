@@ -1,0 +1,47 @@
+name: Scrape Backloggd for a user
+
+# Triggered on-demand by the /api/refresh Pages Function (workflow_dispatch)
+# with the requesting user's uid + the scrape mode. Runs the Playwright scraper
+# and writes results back to the user's Firestore document.
+on:
+  workflow_dispatch:
+    inputs:
+      uid:
+        description: Firebase uid to scrape for
+        required: true
+        type: string
+      mode:
+        description: current_year | all_played_lists | historic
+        required: true
+        type: string
+
+# Avoid overlapping scrapes for the same user; a newer request cancels an older.
+concurrency:
+  group: scrape-${{ github.event.inputs.uid }}
+  cancel-in-progress: true
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run scraper
+        env:
+          SCRAPE_UID: ${{ github.event.inputs.uid }}
+          SCRAPE_MODE: ${{ github.event.inputs.mode }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python scraper/scrape.py

@@ -1,0 +1,17 @@
+{
+  "name": "gamerater-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GameRater web app (Cloudflare Pages + Firebase).",
+  "scripts": {
+    "build": "echo \"static site — no build step\"",
+    "dev": "wrangler pages dev public --compatibility-date=2024-09-01",
+    "deploy": "wrangler pages deploy public"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
