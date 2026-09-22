@@ -170,6 +170,57 @@
       color: var(--text);
     }
 
+    /* ── Collapsible sections ── */
+    section.collapsible {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+    }
+
+    section.collapsible h2 { margin-bottom: 0; }
+
+    .section-toggle {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .section-toggle:hover { color: var(--text); }
+
+    .section-toggle .chevron {
+      transition: transform 0.22s ease;
+    }
+
+    section.collapsed .section-toggle .chevron {
+      transform: rotate(-90deg);
+    }
+
+    .section-body {
+      padding: 0 1rem 0.9rem;
+      overflow: hidden;
+      max-height: 800px;
+      transition: max-height 0.28s ease, padding-bottom 0.28s ease;
+    }
+
+    section.collapsed .section-body {
+      max-height: 0;
+      padding-bottom: 0;
+    }
+
     #year-section { flex: 0 0 auto; }
 
     label {

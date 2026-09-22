@@ -48,32 +48,46 @@
 <div class="app" id="app" style="display:none;">
   <aside class="sidebar">
     <div class="sidebar-scroll">
-      <section id="urls-section">
-        <h2>Backloggd URLs</h2>
-        <div class="field">
-          <label for="folder-url">Games Played Folder URL</label>
-          <input type="url" id="folder-url" placeholder="https://backloggd.com/u/&lt;you&gt;/lists/folder/games-played-by-year/" />
+      <section id="urls-section" class="collapsible">
+        <div class="section-header">
+          <h2>Backloggd URLs</h2>
+          <button class="section-toggle" data-section="urls" type="button" title="Toggle section">
+            <svg class="chevron" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4.5l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
-        <div class="field">
-          <label for="master-url">Full Game List URL</label>
-          <input type="url" id="master-url" placeholder="https://backloggd.com/u/&lt;you&gt;/games/" />
+        <div class="section-body">
+          <div class="field">
+            <label for="folder-url">Games Played Folder URL</label>
+            <input type="url" id="folder-url" placeholder="https://backloggd.com/u/&lt;you&gt;/lists/folder/games-played-by-year/" />
+          </div>
+          <div class="field">
+            <label for="master-url">Full Game List URL</label>
+            <input type="url" id="master-url" placeholder="https://backloggd.com/u/&lt;you&gt;/games/" />
+          </div>
+          <span class="save-msg" id="save-urls-msg"></span>
         </div>
-        <span class="save-msg" id="save-urls-msg"></span>
       </section>
 
-      <section id="add-games-section">
-        <h2>Add Games</h2>
-        <div class="add-games-row">
-          <button class="btn" id="btn-current-year" data-op="current_year" disabled>Current Year</button>
-          <button class="btn" id="btn-all-lists" data-op="all_played_lists" disabled>All Year Lists</button>
-          <button class="btn" id="btn-historic" data-op="historic" disabled>All Games Played</button>
+      <section id="add-games-section" class="collapsible">
+        <div class="section-header">
+          <h2>Add Games</h2>
+          <button class="section-toggle" data-section="add_games" type="button" title="Toggle section">
+            <svg class="chevron" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4.5l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
-        <div id="running-indicator">
-          <span class="spinner"></span>
-          <span id="running-op-label"></span>
+        <div class="section-body">
+          <div class="add-games-row">
+            <button class="btn" id="btn-current-year" data-op="current_year" disabled>Current Year</button>
+            <button class="btn" id="btn-all-lists" data-op="all_played_lists" disabled>All Year Lists</button>
+            <button class="btn" id="btn-historic" data-op="historic" disabled>All Games Played</button>
+          </div>
+          <div id="running-indicator">
+            <span class="spinner"></span>
+            <span id="running-op-label"></span>
+          </div>
+          <div id="status-box"></div>
+          <div class="banner" id="result-banner"></div>
         </div>
-        <div id="status-box"></div>
-        <div class="banner" id="result-banner"></div>
       </section>
 
       <section id="view-section">

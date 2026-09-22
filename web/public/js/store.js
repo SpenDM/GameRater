@@ -24,6 +24,7 @@ export async function loadConfig(uid) {
   return {
     folder_url: cfg.folder_url || DEFAULT_FOLDER_URL,
     master_url: cfg.master_url || DEFAULT_MASTER_URL,
+    sections:   cfg.sections   || {},
   };
 }
 
@@ -33,6 +34,10 @@ export async function saveConfig(uid, folderUrl, masterUrl) {
     { config: { folder_url: folderUrl || '', master_url: masterUrl || '' } },
     { merge: true }
   );
+}
+
+export async function saveSections(uid, sections) {
+  await setDoc(userDoc(uid), { config: { sections } }, { merge: true });
 }
 
 export async function loadGames(uid) {

@@ -1,7 +1,7 @@
 // Launcher shell: auth gate + sidebar wiring + rater iframe bridge.
 // Web port of assets/launcher.html's script (pywebview → Firestore/GitHub Action).
 import { onAuthChanged, loginGoogle, loginEmail, registerEmail, signOut, getIdToken, authErrorMessage } from './auth.js';
-import { loadConfig, saveConfig, loadGames, saveGames, watchStatus } from './store.js';
+import { loadConfig, saveConfig, loadGames, saveGames, saveSections, watchStatus } from './store.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -62,6 +62,29 @@ $('login-toggle-link').addEventListener('click', () => {
 });
 
 $('signout-btn').addEventListener('click', () => signOut());
+
+// ── Collapsible sections ───────────────────────────────────────────────
+let sectionStates = {};
+
+function applySectionStates(saved) {
+  ['urls', 'add_games'].forEach(key => {
+    const el = $(key === 'urls' ? 'urls-section' : 'add-games-section');
+    if (!el) return;
+    const expanded = saved[key] !== false; // default expanded
+    el.classList.toggle('collapsed', !expanded);
+    sectionStates[key] = expanded;
+  });
+}
+
+document.querySelectorAll('.section-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.section;
+    const section = btn.closest('section');
+    const nowCollapsed = section.classList.toggle('collapsed');
+    sectionStates[key] = !nowCollapsed;
+    if (uid) saveSections(uid, sectionStates).catch(() => {});
+  });
+});
 
 // ── Save status ────────────────────────────────────────────────────────
 let saveStatusTimer = null;
@@ -137,6 +160,7 @@ async function startApp() {
   const config = await loadConfig(uid);
   $('folder-url').value = config.folder_url || '';
   $('master-url').value = config.master_url || '';
+  applySectionStates(config.sections || {});
   setButtonsEnabled(true);
 
   latestGames = await loadGames(uid);
