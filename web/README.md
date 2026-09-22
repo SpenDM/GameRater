@@ -2,7 +2,7 @@
 
 The web version of GameRater. Same look and feel as the desktop app, but
 multi-user: each person signs in, keeps their own game log, rates games into
-tiers / GOTY awards, and refreshes from their Backloggd profile on demand.
+tiers / GOTY awards, and refreshes from their Backloggd profile on demand. 
 
 ## Architecture
 
