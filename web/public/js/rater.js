@@ -246,6 +246,70 @@ async function saveCSV() {
 let dragGame = null;
 let dragEl   = null;
 
+// ── Rating picker state ───────────────────────────────
+let activePicker      = null;
+let activePickerAnchor = null;
+
+function closePicker() {
+  if (activePicker) { activePicker.remove(); activePicker = null; activePickerAnchor = null; }
+}
+
+// Close picker on any outside click or scroll.
+document.addEventListener('click',  e => { if (activePicker && !activePicker.contains(e.target)) closePicker(); });
+document.addEventListener('scroll', () => closePicker(), true);
+
+function showRatingPicker(game, anchorEl) {
+  closePicker();
+  const rect = anchorEl.getBoundingClientRect();
+  const picker = document.createElement('div');
+  picker.className = 'rating-picker';
+  // position: fixed so it escapes any overflow:hidden ancestor (e.g. .tier-view)
+  picker.style.left = Math.round(rect.left + rect.width / 2) + 'px';
+  picker.style.top  = Math.round(rect.top - 8) + 'px';
+  picker.addEventListener('click', e => e.stopPropagation());
+
+  ORDER.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'rating-picker-btn' + (r === game.rating ? ' active' : '');
+    btn.title = RATING_LABELS[r];
+    btn.type  = 'button';
+    const img = document.createElement('img');
+    img.src = `assets/images/${r}.png`;
+    img.alt = RATING_LABELS[r];
+    img.draggable = false;
+    btn.appendChild(img);
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (r !== game.rating) {
+        for (const yr of YEARS) {
+          const src = ALL_STATE[yr][game.rating];
+          if (!src) continue;
+          const idx = src.findIndex(g => g === game);
+          if (idx !== -1) {
+            src.splice(idx, 1);
+            game.rating = r;
+            ALL_STATE[yr][r].push(game);
+            markDirty();
+            break;
+          }
+        }
+      }
+      const view = currentView;
+      closePicker();
+      if (view === 'tier') renderTiers();
+      else if (view === 'goty') renderGoty();
+      else renderList();
+    });
+
+    picker.appendChild(btn);
+  });
+
+  document.body.appendChild(picker);
+  activePicker = picker;
+  activePickerAnchor = anchorEl;
+}
+
 let autoScrollRAF = null;
 
 function startAutoScroll(clientY) {
@@ -303,7 +367,7 @@ function buildRow(game) {
   row.className = 'game-row' + (game.url ? ' clickable' : '');
   row.dataset.rating = game.rating;
   row.style.setProperty('--row-accent', color);
-  if (game.url) row.addEventListener('click', () => openExternal(game.url));
+  if (game.url) row.addEventListener('dblclick', () => openExternal(game.url));
   row.innerHTML = `
     <div class="game-cover-wrap cover-hover">${coverHtml}<span class="cover-hover-title">${escapeHtml(game.title)}</span></div>
     <div class="game-body">
@@ -350,8 +414,8 @@ function makeCoverItem(game, rating) {
   item.appendChild(tooltip);
   item.appendChild(coverEl);
 
-  // Click opens Backloggd page, but not if a drag just finished
   let wasDragged = false;
+  let clickTimer  = null;
   item.addEventListener('dragstart', e => {
     wasDragged = true;
     dragGame = { title: game.title, fromRating: rating };
@@ -360,8 +424,14 @@ function makeCoverItem(game, rating) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', game.title);
   });
-  item.addEventListener('click', () => {
+  item.addEventListener('click', e => {
     if (wasDragged) { wasDragged = false; return; }
+    if (activePickerAnchor === item) return;
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+    clickTimer = setTimeout(() => { clickTimer = null; showRatingPicker(game, item); }, 220);
+  });
+  item.addEventListener('dblclick', () => {
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
     if (game.url) openExternal(game.url);
   });
   item.addEventListener('dragend', () => {
@@ -645,8 +715,15 @@ function buildGotySlot(cat, large) {
       artBox.classList.remove('dragging');
       gotyDragGame = null;
     });
-    artBox.addEventListener('click', () => {
+    let slotClickTimer = null;
+    artBox.addEventListener('click', e => {
       if (wasDragged) { wasDragged = false; return; }
+      if (activePickerAnchor === artBox) return;
+      if (slotClickTimer) { clearTimeout(slotClickTimer); slotClickTimer = null; }
+      slotClickTimer = setTimeout(() => { slotClickTimer = null; showRatingPicker(holder, artBox); }, 220);
+    });
+    artBox.addEventListener('dblclick', () => {
+      if (slotClickTimer) { clearTimeout(slotClickTimer); slotClickTimer = null; }
       if (holder.url) openExternal(holder.url);
     });
   } else {
@@ -713,6 +790,7 @@ function buildGotyCandidate(game) {
   item.appendChild(coverEl);
 
   let wasDragged = false;
+  let clickTimer  = null;
   item.addEventListener('dragstart', e => {
     wasDragged = true;
     gotyDragGame = { title: game.title, mode: 'candidate' };
@@ -726,8 +804,14 @@ function buildGotyCandidate(game) {
     cancelAutoScroll();
     gotyDragGame = null;
   });
-  item.addEventListener('click', () => {
+  item.addEventListener('click', e => {
     if (wasDragged) { wasDragged = false; return; }
+    if (activePickerAnchor === item) return;
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+    clickTimer = setTimeout(() => { clickTimer = null; showRatingPicker(game, item); }, 220);
+  });
+  item.addEventListener('dblclick', () => {
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
     if (game.url) openExternal(game.url);
   });
 
