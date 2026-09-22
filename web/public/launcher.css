@@ -68,12 +68,6 @@
       white-space: nowrap;
     }
 
-    .auth-bar .quit-btn {
-      padding: 0.3rem 0.7rem;
-      font-size: 0.75rem;
-      flex-shrink: 0;
-    }
-
     .sidebar-scroll {
       flex: 1;
       overflow-y: auto;
