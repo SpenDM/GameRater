@@ -1,4 +1,4 @@
-# GameRater — Web App (Cloudflare Pages + Firebase)
+# GameRater — Web App (Cloudflare Workers + Firebase)
 
 The web version of GameRater. Same look and feel as the desktop app, but
 multi-user: each person signs in, keeps their own game log, rates games into
@@ -7,15 +7,15 @@ tiers / GOTY awards, and refreshes from their Backloggd profile on demand.
 ## Architecture
 
 ```
-Cloudflare Pages (this repo, auto-deployed from GitHub)
-  public/                     static SPA
+Cloudflare Worker (this repo, deployed from GitHub via Workers Builds)
+  src/index.js                Worker entrypoint: routes /api/*, else static assets
+    src/refresh.js            verifies Firebase token → triggers GitHub scrape
+    src/cover.js              same-origin cover-image proxy (for PNG export)
+  public/                     static assets (served by the Worker's asset binding)
     index.html                launcher shell (login + sidebar + rater iframe)
     rater.html + rater.css    the rater view (tier / list / GOTY), CSS-isolated
     js/rater.js               data-driven rater (ported from the desktop template)
     js/{firebase,auth,store,launcher}.js
-  functions/api/
-    refresh.js                verifies Firebase token → triggers GitHub scrape
-    cover.js                  same-origin cover-image proxy (for PNG export)
 
 Firebase        Auth (Google + email/password) + Firestore (per-user data)
 GitHub Actions  scraper/scrape.py runs Playwright on demand, writes Firestore
@@ -56,18 +56,26 @@ Create a **fine-grained personal access token** scoped to this repo with
 Repo → **Settings → Secrets and variables → Actions → New repository secret**:
 - `FIREBASE_SERVICE_ACCOUNT` = the entire service-account JSON from step 1.6.
 
-### 4. Cloudflare Pages
-1. **Workers & Pages → Create → Pages → Connect to Git**, pick this repo.
+### 4. Cloudflare Worker (deploy from Git)
+1. **Workers & Pages → Create → Workers → Import a repository** (Workers Builds),
+   pick this repo. (Or, from an existing Worker: **Settings → Builds → Connect** the repo.)
 2. Build settings:
    - **Root directory:** `web`
    - **Build command:** `npm install`
-   - **Build output directory:** `public`
-3. **Settings → Environment variables** (Production + Preview):
-   - `FIREBASE_PROJECT_ID` = your Firebase project id
-   - `GITHUB_REPO` = `owner/name` of this repo
-   - `GITHUB_TOKEN` = the token from step 2 (mark as **encrypted**)
+   - **Deploy command:** `npx wrangler deploy`
+
+   `wrangler.toml` supplies the rest: `main = src/index.js`, and the `[assets]`
+   binding serving `public/`. There is no "build output directory" field — that
+   was a Pages concept; the Worker's assets come from `wrangler.toml`.
+3. **Settings → Variables and Secrets**:
+   - `FIREBASE_PROJECT_ID` = your Firebase project id (plaintext var)
+   - `GITHUB_REPO` = `owner/name` of this repo (plaintext var)
+   - `GITHUB_TOKEN` = the token from step 2 (**Secret**)
    - `GITHUB_REF` = your default branch (optional; defaults to `main`)
-4. Deploy. Each push to the connected branch redeploys automatically.
+4. Deploy. Each push to the connected branch rebuilds and redeploys automatically.
+
+You can also deploy from your machine: `cd web && npx wrangler deploy`
+(set secrets first with `npx wrangler secret put GITHUB_TOKEN`).
 
 ### 5. (Optional) Seed your existing data
 Migrate the desktop app's `games.csv` into your account:
@@ -83,8 +91,8 @@ FIREBASE_SERVICE_ACCOUNT="$(cat path/to/service-account.json)" \
 cd web
 npm install
 # put real values in public/js/firebase-config.js first
-npm run dev            # wrangler pages dev — serves static site + Functions
+npm run dev            # wrangler dev — serves static assets + the Worker
 ```
 Auth and Firestore talk to your real Firebase project. The scrape button needs the
-Cloudflare env vars set (`wrangler pages dev` reads them from a local `.dev.vars`
-file if present); without them, viewing/rating/exporting still work.
+Worker env vars set (`wrangler dev` reads them from a local `.dev.vars` file if
+present); without them, viewing/rating/exporting still work.

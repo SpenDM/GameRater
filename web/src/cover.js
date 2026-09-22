@@ -14,8 +14,7 @@ function hostAllowed(hostname) {
   return ALLOWED_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
 }
 
-export async function onRequestGet(context) {
-  const { request } = context;
+export async function handleCover(request, env, ctx) {
   const reqUrl = new URL(request.url);
   const target = reqUrl.searchParams.get('url');
 
@@ -53,6 +52,6 @@ export async function onRequestGet(context) {
   headers.set('Access-Control-Allow-Origin', '*');
 
   const resp = new Response(upstream.body, { status: 200, headers });
-  context.waitUntil(cache.put(cacheKey, resp.clone()));
+  ctx.waitUntil(cache.put(cacheKey, resp.clone()));
   return resp;
 }

@@ -41,9 +41,7 @@ async function verifyIdToken(token, projectId) {
   return payload; // payload.sub === uid
 }
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
-
+export async function handleRefresh(request, env) {
   const projectId = env.FIREBASE_PROJECT_ID;
   const repo = env.GITHUB_REPO;               // "owner/name"
   const token = env.GITHUB_TOKEN;
@@ -84,7 +82,7 @@ export async function onRequestPost(context) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github+json',
-        'User-Agent': 'GameRater-Pages-Function',
+        'User-Agent': 'GameRater-Worker',
         'X-GitHub-Api-Version': '2022-11-28',
         'Content-Type': 'application/json',
       },
