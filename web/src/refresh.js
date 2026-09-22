@@ -49,7 +49,8 @@ export async function handleRefresh(request, env) {
   const workflow = env.WORKFLOW_FILE || 'scrape.yml';
 
   if (!projectId || !repo || !token) {
-    return json({ error: 'server not configured' }, 500);
+    const missing = ['FIREBASE_PROJECT_ID', 'GITHUB_REPO', 'GITHUB_TOKEN'].filter(k => !env[k]);
+    return json({ error: 'server not configured', missing }, 500);
   }
 
   // 1. Authenticate the caller.
