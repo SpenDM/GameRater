@@ -47,65 +47,68 @@
 <!-- ── App ───────────────────────────────────────────────────────── -->
 <div class="app" id="app" style="display:none;">
   <aside class="sidebar">
-    <div class="user-bar">
+    <div class="auth-bar">
       <span class="user-email" id="user-email"></span>
+      <button class="btn quit-btn" id="signout-btn">Sign Out</button>
     </div>
 
-    <section id="urls-section">
-      <h2>Backloggd URLs</h2>
-      <div class="field">
-        <label for="folder-url">Games Played Folder URL</label>
-        <input type="url" id="folder-url" placeholder="https://backloggd.com/u/&lt;you&gt;/lists/folder/games-played-by-year/" />
-      </div>
-      <div class="field">
-        <label for="master-url">Full Game List URL</label>
-        <input type="url" id="master-url" placeholder="https://backloggd.com/u/&lt;you&gt;/games/" />
-      </div>
-      <span class="save-msg" id="save-urls-msg"></span>
-    </section>
+    <div class="sidebar-scroll">
+      <section id="urls-section">
+        <h2>Backloggd URLs</h2>
+        <div class="field">
+          <label for="folder-url">Games Played Folder URL</label>
+          <input type="url" id="folder-url" placeholder="https://backloggd.com/u/&lt;you&gt;/lists/folder/games-played-by-year/" />
+        </div>
+        <div class="field">
+          <label for="master-url">Full Game List URL</label>
+          <input type="url" id="master-url" placeholder="https://backloggd.com/u/&lt;you&gt;/games/" />
+        </div>
+        <span class="save-msg" id="save-urls-msg"></span>
+      </section>
 
-    <section id="add-games-section">
-      <h2>Add Games</h2>
-      <div class="add-games-row">
-        <button class="btn" id="btn-current-year" data-op="current_year" disabled>Current Year</button>
-        <button class="btn" id="btn-all-lists" data-op="all_played_lists" disabled>All Year Lists</button>
-        <button class="btn" id="btn-historic" data-op="historic" disabled>All Games Played</button>
-      </div>
-      <div id="running-indicator">
-        <span class="spinner"></span>
-        <span id="running-op-label"></span>
-      </div>
-      <div id="status-box"></div>
-      <div class="banner" id="result-banner"></div>
-    </section>
+      <section id="add-games-section">
+        <h2>Add Games</h2>
+        <div class="add-games-row">
+          <button class="btn" id="btn-current-year" data-op="current_year" disabled>Current Year</button>
+          <button class="btn" id="btn-all-lists" data-op="all_played_lists" disabled>All Year Lists</button>
+          <button class="btn" id="btn-historic" data-op="historic" disabled>All Games Played</button>
+        </div>
+        <div id="running-indicator">
+          <span class="spinner"></span>
+          <span id="running-op-label"></span>
+        </div>
+        <div id="status-box"></div>
+        <div class="banner" id="result-banner"></div>
+      </section>
 
-    <section id="view-section">
-      <h2>View</h2>
-      <div class="view-toggle" id="view-toggle">
-        <button class="view-btn active" data-view="tier" title="Tier view">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
-          Tier
-        </button>
-        <button class="view-btn" data-view="list" title="List view">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
-          List
-        </button>
-        <button class="view-btn" data-view="goty" title="GOTY view">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
-          GOTY
-        </button>
+      <section id="view-section">
+        <h2>View</h2>
+        <div class="view-toggle" id="view-toggle">
+          <button class="view-btn active" data-view="tier" title="Tier view">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="3.5" rx="1" fill="currentColor" opacity="0.9"/><rect x="1" y="6.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.65"/><rect x="1" y="10.5" width="14" height="3" rx="1" fill="currentColor" opacity="0.4"/></svg>
+            Tier
+          </button>
+          <button class="view-btn" data-view="list" title="List view">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="7" width="9" height="2" rx="1" fill="currentColor"/><rect x="5" y="12" width="9" height="2" rx="1" fill="currentColor"/><rect x="2" y="2" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="7" width="2" height="2" rx="0.5" fill="currentColor"/><rect x="2" y="12" width="2" height="2" rx="0.5" fill="currentColor"/></svg>
+            List
+          </button>
+          <button class="view-btn" data-view="goty" title="GOTY view">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 1.5h6v3.5a3 3 0 0 1-6 0V1.5Z" fill="currentColor"/><path d="M5 2.2H2.7a1 1 0 0 0-1 1.1c.15 1.5 1 2.7 2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><path d="M11 2.2h2.3a1 1 0 0 1 1 1.1c-.15 1.5-1 2.7-2.6 3.2" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linecap="round"/><rect x="7" y="8.5" width="2" height="2.3" fill="currentColor"/><path d="M4.5 14.5c0-1.4 1.5-2.3 3.5-2.3s3.5 0.9 3.5 2.3v.3h-7v-.3Z" fill="currentColor"/></svg>
+            GOTY
+          </button>
+        </div>
+      </section>
+
+      <section id="year-section">
+        <h2>Year</h2>
+        <div class="year-list" id="year-list"></div>
+      </section>
+
+      <div class="bottom-actions">
+        <span class="save-status" id="save-status"></span>
+        <span class="export-msg" id="export-msg"></span>
+        <button class="btn export-btn" id="export-btn">Export Image</button>
       </div>
-    </section>
-
-    <section id="year-section">
-      <h2>Year</h2>
-      <div class="year-list" id="year-list"></div>
-    </section>
-
-    <div class="bottom-actions">
-      <span class="export-msg" id="export-msg"></span>
-      <button class="btn export-btn" id="export-btn">Export Image</button>
-      <button class="btn quit-btn" id="signout-btn">Sign Out</button>
     </div>
   </aside>
 

@@ -10,11 +10,9 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./public"
 binding = "ASSETS"
 
-# Runtime configuration is set as Worker variables / secrets in the Cloudflare
-# dashboard (Settings → Variables and Secrets) or via `wrangler secret put`,
-# NOT committed here:
-#   FIREBASE_PROJECT_ID   your Firebase project id (e.g. vg-ranker)
-#   GITHUB_REPO           "owner/name" of this GitHub repo
-#   GITHUB_TOKEN          fine-grained token with Actions: read/write (secret)
-#   GITHUB_REF            branch the scrape workflow lives on (optional, default "main")
-#   WORKFLOW_FILE         workflow filename (optional, default "scrape.yml")
+[vars]
+FIREBASE_PROJECT_ID = "vg-ranker"
+GITHUB_REPO         = "SpenDM/GameRater"
+GITHUB_REF          = "master"
+# GITHUB_TOKEN is a secret — set via: wrangler secret put GITHUB_TOKEN
+# WORKFLOW_FILE defaults to "scrape.yml"

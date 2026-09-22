@@ -63,6 +63,37 @@ $('login-toggle-link').addEventListener('click', () => {
 
 $('signout-btn').addEventListener('click', () => signOut());
 
+// ── Save status ────────────────────────────────────────────────────────
+let saveStatusTimer = null;
+function setSaveStatus(state, msg) {
+  const el = $('save-status');
+  if (!el) return;
+  if (saveStatusTimer) { clearTimeout(saveStatusTimer); saveStatusTimer = null; }
+  if (state === 'saving') {
+    el.textContent = 'Saving…';
+    el.className = 'save-status';
+  } else if (state === 'saved') {
+    el.textContent = 'Saved.';
+    el.className = 'save-status';
+    saveStatusTimer = setTimeout(() => { el.textContent = ''; }, 2000);
+  } else if (state === 'error') {
+    el.textContent = `Save error: ${msg || 'unknown'}`;
+    el.className = 'save-status error';
+  } else {
+    el.textContent = '';
+    el.className = 'save-status';
+  }
+}
+
+function makeSaveCb() {
+  return async (games) => {
+    if (!uid) return false;
+    setSaveStatus('saving');
+    try { await saveGames(uid, games); setSaveStatus('saved'); return true; }
+    catch (e) { setSaveStatus('error', e.message || String(e)); return false; }
+  };
+}
+
 // ── Rater iframe bridge ────────────────────────────────────────────────
 const raterFrame = $('rater-frame');
 let frameReady = false;
@@ -91,11 +122,7 @@ function maybeInitRater() {
   if (!frameReady || latestGames === null) return;
   const fn = raterFrame.contentWindow.initRater;
   if (typeof fn !== 'function') return;
-  fn(latestGames, async (games) => {
-    if (!uid) return false;
-    try { await saveGames(uid, games); return true; }
-    catch (e) { return false; }
-  });
+  fn(latestGames, makeSaveCb());
   onRaterLoad();
 }
 
@@ -116,10 +143,7 @@ async function reloadGames() {
   latestGames = await loadGames(uid);
   const fn = raterFrame.contentWindow.initRater;
   if (frameReady && typeof fn === 'function') {
-    fn(latestGames, async (games) => {
-      if (!uid) return false;
-      try { await saveGames(uid, games); return true; } catch (e) { return false; }
-    });
+    fn(latestGames, makeSaveCb());
     onRaterLoad();
   }
 }

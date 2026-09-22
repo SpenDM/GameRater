@@ -46,7 +46,38 @@
       height: 100vh;
       overflow: hidden;
       border-right: 1px solid var(--border);
-      padding: 1rem 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .auth-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .auth-bar .user-email {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .auth-bar .quit-btn {
+      padding: 0.3rem 0.7rem;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .sidebar-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.9rem 1rem;
       display: flex;
       flex-direction: column;
       gap: 0.8rem;
@@ -382,12 +413,16 @@
   color: var(--text-dim);
 }
 .login-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
-.user-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.user-email {
   font-size: 0.78rem;
   color: var(--text-dim);
-  word-break: break-all;
 }
-.user-bar .user-email { flex: 1; }
+
+.save-status {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 1em;
+  word-break: break-word;
+}
+.save-status.error { color: var(--bad); }
