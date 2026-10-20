@@ -464,12 +464,19 @@ async def fetch_release_years(games: list[dict]) -> dict[str, str]:
 # ── CSV merge ─────────────────────────────────────────────────────────────────
 
 def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int) -> tuple[list[dict], int]:
-    """Add any titles from list_entries not already in games. Returns (merged, added_count)."""
-    existing = {g['title'].lower() for g in games}
+    """Add any titles from list_entries not already in games. A title that's
+    already present but has no year_played (e.g. picked up earlier by the
+    full-library/historic scrape, which has no year info) gets backfilled to
+    this year instead of being silently skipped as a duplicate — otherwise a
+    game that shows up in both the full library and a "played YYYY" list
+    never gets assigned to that year. Returns (merged, added_count)."""
+    by_title = {g['title'].lower(): g for g in games}
     added = 0
     for entry in list_entries:
-        if entry['title'].lower() not in existing:
-            games.append({
+        key = entry['title'].lower()
+        existing = by_title.get(key)
+        if existing is None:
+            new_game = {
                 'title': entry['title'],
                 'rating': 'unrated',
                 'review': '',
@@ -477,8 +484,12 @@ def merge_list_into_games(games: list[dict], list_entries: list[dict], year: int
                 'year_played': str(year),
                 'release_year': '',
                 'goty_categories': '',
-            })
-            existing.add(entry['title'].lower())
+            }
+            games.append(new_game)
+            by_title[key] = new_game
+            added += 1
+        elif not existing.get('year_played', '').strip():
+            existing['year_played'] = str(year)
             added += 1
     return games, added
 
