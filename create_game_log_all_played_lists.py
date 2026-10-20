@@ -137,6 +137,22 @@ async def _stealth_page(context, stealth):
     return page
 
 
+async def _wait_out_anubis_challenge(page, timeout: float = 15.0) -> None:
+    """Backloggd sometimes fronts a page with an Anubis proof-of-work bot
+    challenge ("Making sure you're not a bot!"). It resolves itself
+    client-side and redirects within a couple seconds — poll for that
+    instead of scraping the challenge page as if it were real content."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        try:
+            title = (await page.title()).lower()
+        except Exception:
+            return
+        if 'not a bot' not in title and 'loading http' not in title:
+            return
+        await asyncio.sleep(0.5)
+
+
 # ── Backloggd scraping ────────────────────────────────────────────────────────
 
 async def fetch_year_lists(folder_url: str) -> list[tuple[int, str]]:
@@ -165,6 +181,7 @@ async def fetch_year_lists(folder_url: str) -> list[tuple[int, str]]:
                 await page.close()
                 await browser.close()
                 return []
+            await _wait_out_anubis_challenge(page)
             await asyncio.sleep(2)
 
             links = await page.evaluate('''() => {
@@ -239,6 +256,7 @@ async def fetch_backloggd_list(url: str) -> list[dict]:
                     await page.close()
                     break
 
+                await _wait_out_anubis_challenge(page)
                 await asyncio.sleep(2)
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await asyncio.sleep(1)
@@ -425,6 +443,7 @@ async def fetch_release_years(games: list[dict]) -> dict[str, str]:
                     print(f" ✗ (HTTP {response.status})")
                     await page.close()
                     continue
+                await _wait_out_anubis_challenge(page)
                 html = await page.evaluate("() => document.documentElement.outerHTML")
                 m = re.search(r'release_year:(\d{4})', html)
                 if m:
